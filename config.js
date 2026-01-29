@@ -23,10 +23,10 @@ const CONFIG = {
     STORAGE_USER_DATA: 'fruitMerge_userData',
     STORAGE_POWERUPS: 'fruitMerge_powerups',
 
-    // Backend URL (change this to your backend)
-    BACKEND_URL: 'https://your-backend.com/api',
+    // Backend URL (update this after deploying backend to Render)
+    BACKEND_URL: 'https://fruit-merge-backend-7p5k.onrender.com/api',
 
-    // Telegram Bot username (for referral links)
+    // Telegram Bot username (WITHOUT the @)
     BOT_USERNAME: 'FruitMergeGameBot',
     APP_SHORT_NAME: 'play'
 };

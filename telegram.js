@@ -1,62 +1,61 @@
 // ==========================================
 // Telegram Mini App Integration
-// Handles: User auth, sharing, payments
 // ==========================================
 
 (function() {
     'use strict';
 
-    // ---------- Telegram WebApp Instance ----------
     const tg = window.Telegram?.WebApp;
-
-    // ---------- Check if running in Telegram ----------
     const isTelegram = !!tg;
-
-    // ---------- User Data ----------
+    
     let userData = null;
+    let referralCode = null;
 
     // ---------- Initialize ----------
+    
     function init() {
         if (!isTelegram) {
-            console.log('Not running in Telegram, skipping TG integration');
+            console.log('[TG] Not in Telegram environment');
             return;
         }
 
-        console.log('Telegram Mini App detected, initializing...');
+        console.log('[TG] Initializing Telegram Mini App...');
 
-        // Tell Telegram the app is ready
+        // Ready signal
         tg.ready();
 
-        // Expand to full screen
+        // Expand to full height
         tg.expand();
 
-        // Set header color
+        // Set theme colors
         tg.setHeaderColor('#1a1a2e');
         tg.setBackgroundColor('#1a1a2e');
 
         // Get user data
         userData = tg.initDataUnsafe?.user;
         if (userData) {
-            console.log('Player:', userData.first_name, userData.last_name);
+            console.log('[TG] User:', userData.first_name, userData.id);
         }
 
-        // Enable closing confirmation
+        // Check for referral start parameter
+        referralCode = tg.initDataUnsafe?.start_param;
+        if (referralCode) {
+            console.log('[TG] Referral code:', referralCode);
+            processReferral(referralCode);
+        }
+
+        // Enable closing confirmation when game is in progress
         tg.enableClosingConfirmation();
 
-        // Setup main button (can be used for various purposes)
+        // Setup main button
         setupMainButton();
 
-        // Setup back button
-        tg.BackButton.onClick(() => {
-            // Handle back navigation if needed
-        });
-
-        console.log('Telegram Mini App initialized successfully');
+        console.log('[TG] Initialization complete');
     }
 
-    // ---------- Setup Main Button ----------
+    // ---------- Main Button ----------
+    
     function setupMainButton() {
-        // The main button can be shown at game over for sharing
         tg.MainButton.setText('Share Score');
         tg.MainButton.color = '#667eea';
         tg.MainButton.textColor = '#ffffff';
@@ -66,69 +65,176 @@
         });
     }
 
-    // ---------- Show Main Button ----------
-    function showMainButton() {
-        if (isTelegram) {
-            tg.MainButton.show();
-        }
+    function showMainButton(text = 'Share Score') {
+        if (!isTelegram) return;
+        tg.MainButton.setText(text);
+        tg.MainButton.show();
     }
 
-    // ---------- Hide Main Button ----------
     function hideMainButton() {
-        if (isTelegram) {
-            tg.MainButton.hide();
+        if (!isTelegram) return;
+        tg.MainButton.hide();
+    }
+
+    // ---------- Haptic Feedback ----------
+    
+    function hapticFeedback(type = 'light') {
+        if (!isTelegram) return;
+
+        try {
+            switch(type) {
+                case 'light':
+                    tg.HapticFeedback.impactOccurred('light');
+                    break;
+                case 'medium':
+                    tg.HapticFeedback.impactOccurred('medium');
+                    break;
+                case 'heavy':
+                    tg.HapticFeedback.impactOccurred('heavy');
+                    break;
+                case 'success':
+                    tg.HapticFeedback.notificationOccurred('success');
+                    break;
+                case 'warning':
+                    tg.HapticFeedback.notificationOccurred('warning');
+                    break;
+                case 'error':
+                    tg.HapticFeedback.notificationOccurred('error');
+                    break;
+            }
+        } catch (e) {
+            console.log('[TG] Haptic feedback error:', e);
         }
     }
 
-    // ---------- Share Score ----------
+    // ---------- Sharing ----------
+    
     function shareScore(score) {
-        if (!isTelegram) {
-            // Fallback for web
-            const text = `I scored ${score} points in Fruit Merge Game! Can you beat me?`;
+        const text = `🍉 I scored ${score} points in Fruit Merge!\nCan you beat my score?`;
+        
+        if (isTelegram) {
+            tg.switchInlineQuery(text, ['users', 'groups', 'channels']);
+        } else {
+            // Web fallback
             if (navigator.share) {
                 navigator.share({ text });
             } else {
                 navigator.clipboard.writeText(text);
-                alert('Score copied to clipboard!');
+                showToast('Score copied to clipboard!');
             }
-            return;
         }
+    }
 
-        // Share via Telegram
-        const text = `🍉 I scored ${score} points in Fruit Merge Game!\nCan you beat my score?`;
+    function shareReferralLink() {
+        const link = getReferralLink();
+        const text = `🎮 Play Fruit Merge with me!\n${link}`;
         
-        // Switch to inline query for sharing
-        tg.switchInlineQuery(text, ['users', 'groups', 'channels']);
-    }
-
-    // ---------- Haptic Feedback ----------
-    function hapticFeedback(type = 'light') {
-        if (!isTelegram) return;
-
-        switch(type) {
-            case 'light':
-                tg.HapticFeedback.impactOccurred('light');
-                break;
-            case 'medium':
-                tg.HapticFeedback.impactOccurred('medium');
-                break;
-            case 'heavy':
-                tg.HapticFeedback.impactOccurred('heavy');
-                break;
-            case 'success':
-                tg.HapticFeedback.notificationOccurred('success');
-                break;
-            case 'error':
-                tg.HapticFeedback.notificationOccurred('error');
-                break;
+        if (isTelegram) {
+            tg.switchInlineQuery(text, ['users', 'groups', 'channels']);
+        } else {
+            navigator.clipboard.writeText(link);
+            showToast('Link copied!');
         }
     }
 
-    // ---------- Show Popup ----------
+    function getReferralLink() {
+        const myId = userData?.id || 'guest';
+        return `https://t.me/${CONFIG.BOT_USERNAME}/${CONFIG.APP_SHORT_NAME}?startapp=${myId}`;
+    }
+
+    // ---------- Referral System ----------
+    
+    function processReferral(code) {
+        // Don't process own referral
+        if (userData && code === userData.id.toString()) return;
+        
+        // Check if already processed
+        const processed = localStorage.getItem('referral_processed');
+        if (processed) return;
+        
+        // Mark as processed
+        localStorage.setItem('referral_processed', code);
+        
+        // In production: Send to backend to credit the referrer
+        console.log('[TG] Processing referral from:', code);
+        
+        // Give bonus to new user
+        const powerups = JSON.parse(localStorage.getItem(CONFIG.STORAGE_POWERUPS) || '{}');
+        powerups.revive = (powerups.revive || 0) + 1;
+        localStorage.setItem(CONFIG.STORAGE_POWERUPS, JSON.stringify(powerups));
+        
+        showToast('Welcome bonus: +1 Revive! 🎁');
+    }
+
+    // ---------- Payments (Telegram Stars) ----------
+    
+    async function requestPayment(item) {
+        if (!isTelegram) {
+            console.log('[TG] Payment not available outside Telegram');
+            showToast('Payment only works in Telegram');
+            return { success: false, error: 'Not in Telegram' };
+        }
+
+        try {
+            // In production, create invoice via your backend
+            // const invoiceLink = await createInvoiceOnBackend(item);
+            
+            // For demo, simulate payment
+            const confirmed = await showConfirm(
+                `Buy ${item.title} for ${item.price} ⭐?`
+            );
+            
+            if (confirmed) {
+                // Simulate successful payment
+                grantPurchase(item);
+                hapticFeedback('success');
+                return { success: true };
+            }
+            
+            return { success: false, error: 'Cancelled' };
+            
+        } catch (error) {
+            console.error('[TG] Payment error:', error);
+            hapticFeedback('error');
+            return { success: false, error: error.message };
+        }
+    }
+
+    function grantPurchase(item) {
+        const powerups = JSON.parse(localStorage.getItem(CONFIG.STORAGE_POWERUPS) || '{}');
+        const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
+        
+        if (item.type === 'consumable') {
+            powerups[item.id] = (powerups[item.id] || 0) + 1;
+        } else if (item.type === 'bundle') {
+            for (const [key, count] of Object.entries(item.contents)) {
+                powerups[key] = (powerups[key] || 0) + count;
+            }
+        } else if (item.type === 'permanent') {
+            if (item.id === 'no_ads') {
+                userData.noAds = true;
+            } else if (item.id === 'double_score') {
+                userData.doubleScore = true;
+            }
+        }
+        
+        localStorage.setItem(CONFIG.STORAGE_POWERUPS, JSON.stringify(powerups));
+        localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(userData));
+        
+        showToast(`Purchased ${item.title}! ✅`);
+        
+        // Update game UI
+        if (window.GameAPI) {
+            window.gameScene?.updateUI();
+        }
+    }
+
+    // ---------- Popups ----------
+    
     function showPopup(title, message, buttons = []) {
         if (!isTelegram) {
             alert(`${title}\n\n${message}`);
-            return Promise.resolve();
+            return Promise.resolve('ok');
         }
 
         return new Promise((resolve) => {
@@ -142,7 +248,6 @@
         });
     }
 
-    // ---------- Show Confirm ----------
     function showConfirm(message) {
         if (!isTelegram) {
             return Promise.resolve(confirm(message));
@@ -155,71 +260,25 @@
         });
     }
 
-    // ---------- Request Payment (Telegram Stars) ----------
-    async function requestPayment(itemId, title, description, amount) {
+    function showAlert(message) {
         if (!isTelegram) {
-            console.log('Payment not available outside Telegram');
-            return { success: false, error: 'Not in Telegram' };
+            alert(message);
+            return Promise.resolve();
         }
 
-        try {
-            // Create invoice link via your backend
-            // For now, we'll use a placeholder
-            // In production, you need a backend to create invoice
-            
-            const invoiceLink = await createInvoice(itemId, title, description, amount);
-            
-            // Open payment
-            const result = await new Promise((resolve) => {
-                tg.openInvoice(invoiceLink, (status) => {
-                    resolve(status);
-                });
-            });
-
-            if (result === 'paid') {
-                hapticFeedback('success');
-                return { success: true };
-            } else {
-                return { success: false, error: result };
-            }
-        } catch (error) {
-            console.error('Payment error:', error);
-            return { success: false, error: error.message };
-        }
-    }
-
-    // ---------- Create Invoice (Backend Call) ----------
-    async function createInvoice(itemId, title, description, amount) {
-        // In production, this should call your backend
-        // Your backend creates the invoice using Telegram Bot API
-        // and returns the invoice link
-        
-        // Example backend call:
-        // const response = await fetch('https://your-backend.com/create-invoice', {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify({
-        //         userId: userData?.id,
-        //         itemId,
-        //         title,
-        //         description,
-        //         amount
-        //     })
-        // });
-        // const data = await response.json();
-        // return data.invoiceLink;
-
-        // Placeholder for demo
-        console.log('Creating invoice for:', itemId, amount, 'stars');
-        throw new Error('Backend not configured');
+        return new Promise((resolve) => {
+            tg.showAlert(message, resolve);
+        });
     }
 
     // ---------- Cloud Storage ----------
+    
     const cloudStorage = {
         async get(key) {
             if (!isTelegram) {
                 return localStorage.getItem(key);
             }
+            
             return new Promise((resolve) => {
                 tg.CloudStorage.getItem(key, (error, value) => {
                     resolve(error ? null : value);
@@ -232,6 +291,7 @@
                 localStorage.setItem(key, value);
                 return true;
             }
+            
             return new Promise((resolve) => {
                 tg.CloudStorage.setItem(key, value, (error) => {
                     resolve(!error);
@@ -244,123 +304,83 @@
                 localStorage.removeItem(key);
                 return true;
             }
+            
             return new Promise((resolve) => {
                 tg.CloudStorage.removeItem(key, (error) => {
                     resolve(!error);
                 });
             });
+        },
+
+        async getAll(keys) {
+            if (!isTelegram) {
+                const result = {};
+                for (const key of keys) {
+                    result[key] = localStorage.getItem(key);
+                }
+                return result;
+            }
+            
+            return new Promise((resolve) => {
+                tg.CloudStorage.getItems(keys, (error, values) => {
+                    resolve(error ? {} : values);
+                });
+            });
         }
     };
 
-    // ---------- Save Score to Cloud ----------
-    async function saveScoreToCloud(score) {
-        const currentBest = parseInt(await cloudStorage.get('bestScore')) || 0;
-        if (score > currentBest) {
-            await cloudStorage.set('bestScore', score.toString());
-            return true;
-        }
-        return false;
-    }
-
-    // ---------- Load Best Score from Cloud ----------
-    async function loadBestScoreFromCloud() {
-        return parseInt(await cloudStorage.get('bestScore')) || 0;
-    }
-
-    // ---------- Game Event Callbacks ----------
-    function onScoreUpdate(score) {
-        // Called when score changes
-        // Can be used for real-time leaderboard updates
-    }
-
-    function onGameOver(score, bestScore) {
-        // Called when game ends
-        showMainButton();
-        hapticFeedback('medium');
-        saveScoreToCloud(score);
-    }
-
+    // ---------- Game Callbacks ----------
+    
     function onGameStart() {
-        // Called when game starts/restarts
         hideMainButton();
     }
 
-    // ---------- Export Public API ----------
+    function onScoreUpdate(score) {
+        // Can be used for real-time updates
+    }
+
+    function onGameOver(score, bestScore) {
+        showMainButton('Share Score 📤');
+    }
+
+    // ---------- Export API ----------
+    
     window.TelegramGame = {
         // State
         isTelegram,
         getUser: () => userData,
+        getReferralCode: () => referralCode,
+        getReferralLink,
 
         // UI
-        shareScore,
+        hapticFeedback,
         showPopup,
         showConfirm,
-        hapticFeedback,
+        showAlert,
         showMainButton,
         hideMainButton,
 
-        // Payment
+        // Sharing
+        shareScore,
+        shareReferralLink,
+
+        // Payments
         requestPayment,
+        grantPurchase,
 
         // Storage
         cloudStorage,
-        saveScoreToCloud,
-        loadBestScoreFromCloud,
 
-        // Game callbacks
+        // Callbacks
+        onGameStart,
         onScoreUpdate,
         onGameOver,
-        onGameStart
+
+        // Init
+        init
     };
 
-    // ---------- Auto Initialize ----------
+    // Auto-initialize
     init();
 
 })();
-
-
-// ==========================================
-// MONETIZATION ITEMS CONFIGURATION
-// Define your purchasable items here
-// ==========================================
-
-const SHOP_ITEMS = {
-    // Revive after game over
-    REVIVE: {
-        id: 'revive',
-        title: 'Continue Game',
-        description: 'Continue playing after game over',
-        price: 10, // Telegram Stars
-        emoji: '💫'
-    },
-
-    // Remove bottom 3 smallest fruits
-    CLEAR_SMALL: {
-        id: 'clear_small',
-        title: 'Clear Small Fruits',
-        description: 'Remove all small fruits from the container',
-        price: 5,
-        emoji: '🧹'
-    },
-
-    // Start with a bigger fruit
-    BIG_START: {
-        id: 'big_start',
-        title: 'Big Start',
-        description: 'Start the next round with a bigger fruit',
-        price: 3,
-        emoji: '🎁'
-    },
-
-    // No ads (if you add ads later)
-    NO_ADS: {
-        id: 'no_ads',
-        title: 'Remove Ads',
-        description: 'Remove all advertisements permanently',
-        price: 100,
-        emoji: '🚫'
-    }
-};
-
-// Export shop items
-window.SHOP_ITEMS = SHOP_ITEMS;

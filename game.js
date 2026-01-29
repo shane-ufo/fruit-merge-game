@@ -1,522 +1,834 @@
 // ==========================================
-// Fruit Merge Game (Suika Game Clone)
-// Built with Phaser 3 + Matter.js
-// FIXED VERSION - No memory leaks
+// Fruit Merge Game - Core Game Logic
+// Fixed collision handling to prevent freezing
 // ==========================================
 
-// ---------- Game Configuration ----------
-const GAME_WIDTH = 400;
-const GAME_HEIGHT = 600;
-const WALL_THICKNESS = 15;
-const DROP_LINE_Y = 80;
-const DANGER_LINE_Y = 100;
+let game = null;
+let gameScene = null;
 
-// ---------- Fruit Configuration ----------
-const FRUITS = [
-    { name: 'Cherry',     color: 0xff6b6b, radius: 15,  score: 1,   emoji: '🍒' },
-    { name: 'Strawberry', color: 0xff8787, radius: 22,  score: 3,   emoji: '🍓' },
-    { name: 'Grape',      color: 0x9775fa, radius: 30,  score: 6,   emoji: '🍇' },
-    { name: 'Orange',     color: 0xffa94d, radius: 38,  score: 10,  emoji: '🍊' },
-    { name: 'Apple',      color: 0xff6b6b, radius: 48,  score: 15,  emoji: '🍎' },
-    { name: 'Pear',       color: 0xffe066, radius: 58,  score: 21,  emoji: '🍐' },
-    { name: 'Peach',      color: 0xffc9c9, radius: 68,  score: 28,  emoji: '🍑' },
-    { name: 'Pineapple',  color: 0xffd43b, radius: 78,  score: 36,  emoji: '🍍' },
-    { name: 'Melon',      color: 0x8ce99a, radius: 88,  score: 45,  emoji: '🍈' },
-    { name: 'Watermelon', color: 0x69db7c, radius: 98,  score: 55,  emoji: '🍉' },
-    { name: 'Rainbow',    color: 0xff00ff, radius: 108, score: 100, emoji: '🌈' }
-];
+// Game state
+const GameState = {
+    score: 0,
+    bestScore: 0,
+    isDropping: false,
+    gameOver: false,
+    canRevive: true,
+    scoreMultiplier: 1
+};
 
-// ---------- Game State ----------
-let score = 0;
-let bestScore = parseInt(localStorage.getItem('fruitMergeBest')) || 0;
-let currentFruitIndex = 0;
-let nextFruitIndex = 0;
-let isDropping = false;
-let gameOver = false;
-let previewFruit = null;
+// ==========================================
+// Main Game Scene
+// ==========================================
 
-// ---------- Phaser Scene ----------
 class GameScene extends Phaser.Scene {
     constructor() {
         super({ key: 'GameScene' });
         this.fruits = [];
-        this.mergeQueue = []; // Queue for merges to prevent race conditions
+        this.currentFruitIndex = 0;
+        this.nextFruitIndex = 0;
+        this.previewFruit = null;
+        this.dropLine = null;
+        this.mergeQueue = [];  // Queue for safe merge processing
+        this.lastDropTime = 0;
     }
 
     preload() {
-        // Assets can be loaded here
+        // Load any assets here if needed
     }
 
     create() {
-        // Reset state on create
+        gameScene = this;
+        
+        // Reset state
+        GameState.score = 0;
+        GameState.isDropping = false;
+        GameState.gameOver = false;
+        GameState.canRevive = true;
         this.fruits = [];
         this.mergeQueue = [];
-        score = 0;
-        gameOver = false;
-        isDropping = false;
-
-        // Initialize physics with boundaries
+        
+        // Load best score
+        GameState.bestScore = parseInt(localStorage.getItem(CONFIG.STORAGE_BEST_SCORE)) || 0;
+        
+        // Check for double score boost
+        const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
+        GameState.scoreMultiplier = userData.doubleScore ? 2 : 1;
+        
+        // Setup physics world with bounds
         this.matter.world.setBounds(
-            WALL_THICKNESS, 
-            0, 
-            GAME_WIDTH - WALL_THICKNESS * 2, 
-            GAME_HEIGHT - WALL_THICKNESS,
-            32, 
+            CONFIG.WALL_THICKNESS,
+            0,
+            CONFIG.GAME_WIDTH - CONFIG.WALL_THICKNESS * 2,
+            CONFIG.GAME_HEIGHT - CONFIG.WALL_THICKNESS,
+            32,
             true, true, false, true
         );
-
-        this.matter.world.setGravity(0, 1);
-
-        // Create visuals
+        
+        // Set gravity
+        this.matter.world.setGravity(0, CONFIG.GRAVITY);
+        
+        // Create visual elements
         this.createBackground();
         this.createWalls();
-
+        
         // Initialize fruits
-        this.generateNextFruit();
+        this.nextFruitIndex = Phaser.Math.Between(0, CONFIG.MAX_SPAWN_LEVEL);
         this.generateNextFruit();
         this.createPreviewFruit();
-
+        
         // Update UI
         this.updateUI();
-
-        // Input handlers
-        this.input.on('pointermove', this.handlePointerMove, this);
-        this.input.on('pointerdown', this.handlePointerDown, this);
-
-        // Collision detection
-        this.matter.world.on('collisionstart', this.handleCollision, this);
-
-        // Game over check timer
-        this.gameOverTimer = this.time.addEvent({
+        
+        // Setup input handlers
+        this.setupInput();
+        
+        // Setup collision handler
+        this.matter.world.on('collisionstart', this.onCollision, this);
+        
+        // Process merge queue in update loop (prevents freeze bug)
+        this.time.addEvent({
+            delay: 50,
+            callback: this.processMergeQueue,
+            callbackScope: this,
+            loop: true
+        });
+        
+        // Check game over condition
+        this.time.addEvent({
             delay: 500,
             callback: this.checkGameOver,
             callbackScope: this,
             loop: true
         });
-    }
-
-    // ---------- Input Handlers ----------
-    handlePointerMove(pointer) {
-        if (!isDropping && !gameOver && previewFruit) {
-            const radius = FRUITS[currentFruitIndex].radius;
-            const x = Phaser.Math.Clamp(
-                pointer.x,
-                WALL_THICKNESS + radius,
-                GAME_WIDTH - WALL_THICKNESS - radius
-            );
-            previewFruit.setPosition(x, DROP_LINE_Y);
-            this.updateDropLine(x);
-        }
-    }
-
-    handlePointerDown(pointer) {
-        if (!isDropping && !gameOver && previewFruit) {
-            this.dropFruit(previewFruit.x);
+        
+        // Notify Telegram game started
+        if (window.TelegramGame) {
+            window.TelegramGame.onGameStart();
         }
     }
 
     // ---------- Background & Walls ----------
+    
     createBackground() {
+        // Main container background
         const bg = this.add.graphics();
-        bg.fillStyle(0xfef3c7, 1);
-        bg.fillRoundedRect(0, 0, GAME_WIDTH, GAME_HEIGHT, 20);
+        bg.fillStyle(0xfef9e7, 1);
+        bg.fillRoundedRect(0, 0, CONFIG.GAME_WIDTH, CONFIG.GAME_HEIGHT, 16);
         
-        const dangerLine = this.add.graphics();
-        dangerLine.lineStyle(2, 0xff0000, 0.5);
-        dangerLine.lineBetween(WALL_THICKNESS, DANGER_LINE_Y, GAME_WIDTH - WALL_THICKNESS, DANGER_LINE_Y);
+        // Danger zone
+        const danger = this.add.graphics();
+        danger.fillStyle(0xff0000, 0.08);
+        danger.fillRect(CONFIG.WALL_THICKNESS, 0, 
+            CONFIG.GAME_WIDTH - CONFIG.WALL_THICKNESS * 2, CONFIG.DANGER_LINE_Y);
         
-        dangerLine.fillStyle(0xff0000, 0.1);
-        dangerLine.fillRect(WALL_THICKNESS, 0, GAME_WIDTH - WALL_THICKNESS * 2, DANGER_LINE_Y);
+        // Danger line
+        danger.lineStyle(2, 0xff0000, 0.4);
+        danger.lineBetween(
+            CONFIG.WALL_THICKNESS, CONFIG.DANGER_LINE_Y,
+            CONFIG.GAME_WIDTH - CONFIG.WALL_THICKNESS, CONFIG.DANGER_LINE_Y
+        );
+        
+        // Warning text
+        this.add.text(CONFIG.GAME_WIDTH / 2, CONFIG.DANGER_LINE_Y / 2, '⚠️', {
+            fontSize: '16px'
+        }).setOrigin(0.5).setAlpha(0.3);
     }
 
     createWalls() {
         const graphics = this.add.graphics();
+        
+        // Wood color gradient effect
         graphics.fillStyle(0x8b4513, 1);
-        graphics.fillRect(0, 0, WALL_THICKNESS, GAME_HEIGHT);
-        graphics.fillRect(GAME_WIDTH - WALL_THICKNESS, 0, WALL_THICKNESS, GAME_HEIGHT);
-        graphics.fillRect(0, GAME_HEIGHT - WALL_THICKNESS, GAME_WIDTH, WALL_THICKNESS);
+        
+        // Left wall
+        graphics.fillRect(0, 0, CONFIG.WALL_THICKNESS, CONFIG.GAME_HEIGHT);
+        
+        // Right wall
+        graphics.fillRect(CONFIG.GAME_WIDTH - CONFIG.WALL_THICKNESS, 0, 
+            CONFIG.WALL_THICKNESS, CONFIG.GAME_HEIGHT);
+        
+        // Bottom
+        graphics.fillRect(0, CONFIG.GAME_HEIGHT - CONFIG.WALL_THICKNESS, 
+            CONFIG.GAME_WIDTH, CONFIG.WALL_THICKNESS);
+        
+        // Add wood grain lines
+        graphics.lineStyle(1, 0x6b3510, 0.3);
+        for (let i = 0; i < CONFIG.GAME_HEIGHT; i += 20) {
+            graphics.lineBetween(2, i, CONFIG.WALL_THICKNESS - 2, i + 10);
+            graphics.lineBetween(CONFIG.GAME_WIDTH - CONFIG.WALL_THICKNESS + 2, i, 
+                CONFIG.GAME_WIDTH - 2, i + 10);
+        }
+    }
+
+    // ---------- Input Handling ----------
+    
+    setupInput() {
+        // Pointer move - update preview position
+        this.input.on('pointermove', (pointer) => {
+            if (GameState.isDropping || GameState.gameOver) return;
+            if (!this.previewFruit) return;
+            
+            const fruit = FRUITS[this.currentFruitIndex];
+            const minX = CONFIG.WALL_THICKNESS + fruit.radius + 5;
+            const maxX = CONFIG.GAME_WIDTH - CONFIG.WALL_THICKNESS - fruit.radius - 5;
+            
+            const x = Phaser.Math.Clamp(pointer.x, minX, maxX);
+            this.previewFruit.setPosition(x, CONFIG.DROP_LINE_Y);
+            this.updateDropLine(x);
+        });
+        
+        // Pointer down - drop fruit
+        this.input.on('pointerdown', (pointer) => {
+            if (GameState.isDropping || GameState.gameOver) return;
+            
+            const now = Date.now();
+            if (now - this.lastDropTime < CONFIG.DROP_COOLDOWN) return;
+            
+            this.dropFruit(this.previewFruit.x);
+            this.lastDropTime = now;
+        });
     }
 
     // ---------- Fruit Management ----------
+    
     generateNextFruit() {
-        currentFruitIndex = nextFruitIndex;
-        nextFruitIndex = Phaser.Math.Between(0, 4);
+        this.currentFruitIndex = this.nextFruitIndex;
+        this.nextFruitIndex = Phaser.Math.Between(0, CONFIG.MAX_SPAWN_LEVEL);
         this.updateNextFruitDisplay();
     }
 
     updateNextFruitDisplay() {
-        const nextFruit = FRUITS[nextFruitIndex];
+        const fruit = FRUITS[this.nextFruitIndex];
         const display = document.getElementById('next-fruit-display');
         if (display) {
-            display.textContent = nextFruit.emoji;
-            display.style.backgroundColor = '#' + nextFruit.color.toString(16).padStart(6, '0');
+            display.textContent = fruit.emoji;
+            display.style.backgroundColor = '#' + fruit.color.toString(16).padStart(6, '0');
         }
     }
 
     createPreviewFruit() {
-        const fruit = FRUITS[currentFruitIndex];
+        const fruit = FRUITS[this.currentFruitIndex];
         
-        if (previewFruit) {
-            previewFruit.destroy();
+        // Destroy existing preview
+        if (this.previewFruit) {
+            this.previewFruit.destroy();
         }
-
-        const graphics = this.add.graphics();
-        graphics.fillStyle(fruit.color, 0.7);
-        graphics.fillCircle(0, 0, fruit.radius);
         
+        // Create container for preview
+        const container = this.add.container(CONFIG.GAME_WIDTH / 2, CONFIG.DROP_LINE_Y);
+        
+        // Circle graphic
+        const circle = this.add.graphics();
+        circle.fillStyle(fruit.color, 0.6);
+        circle.fillCircle(0, 0, fruit.radius);
+        circle.lineStyle(2, 0xffffff, 0.4);
+        circle.strokeCircle(0, 0, fruit.radius);
+        
+        // Emoji
         const emoji = this.add.text(0, 0, fruit.emoji, {
-            fontSize: fruit.radius + 'px'
+            fontSize: (fruit.radius * 1.1) + 'px'
         }).setOrigin(0.5);
-
-        previewFruit = this.add.container(GAME_WIDTH / 2, DROP_LINE_Y, [graphics, emoji]);
         
+        container.add([circle, emoji]);
+        this.previewFruit = container;
+        
+        // Create/update drop line
         if (!this.dropLine) {
             this.dropLine = this.add.graphics();
         }
-        this.dropLine.setVisible(true);
-        this.updateDropLine(GAME_WIDTH / 2);
+        this.updateDropLine(CONFIG.GAME_WIDTH / 2);
     }
 
     updateDropLine(x) {
-        if (this.dropLine) {
-            this.dropLine.clear();
-            this.dropLine.lineStyle(2, 0x888888, 0.3);
-            this.dropLine.lineBetween(x, DROP_LINE_Y, x, GAME_HEIGHT - WALL_THICKNESS);
+        if (!this.dropLine) return;
+        
+        this.dropLine.clear();
+        this.dropLine.lineStyle(1, 0x999999, 0.3);
+        
+        // Dashed line effect
+        const dashLength = 10;
+        const gapLength = 5;
+        let y = CONFIG.DROP_LINE_Y + 20;
+        
+        while (y < CONFIG.GAME_HEIGHT - CONFIG.WALL_THICKNESS) {
+            const endY = Math.min(y + dashLength, CONFIG.GAME_HEIGHT - CONFIG.WALL_THICKNESS);
+            this.dropLine.lineBetween(x, y, x, endY);
+            y += dashLength + gapLength;
         }
     }
 
     dropFruit(x) {
-        isDropping = true;
-
-        if (previewFruit) {
-            previewFruit.setVisible(false);
+        GameState.isDropping = true;
+        
+        // Hide preview
+        if (this.previewFruit) {
+            this.previewFruit.setVisible(false);
         }
         if (this.dropLine) {
             this.dropLine.setVisible(false);
         }
-
-        const fruitObj = this.createFruitBody(x, DROP_LINE_Y, currentFruitIndex);
+        
+        // Create actual physics fruit
+        const fruitObj = this.createPhysicsFruit(x, CONFIG.DROP_LINE_Y, this.currentFruitIndex);
         this.fruits.push(fruitObj);
-
-        this.time.delayedCall(500, () => {
-            if (!gameOver) {
-                isDropping = false;
-                this.generateNextFruit();
-                this.createPreviewFruit();
+        
+        // Haptic feedback
+        if (window.TelegramGame) {
+            window.TelegramGame.hapticFeedback('light');
+        }
+        
+        // Delay before next drop
+        this.time.delayedCall(CONFIG.DROP_COOLDOWN, () => {
+            if (GameState.gameOver) return;
+            
+            GameState.isDropping = false;
+            this.generateNextFruit();
+            this.createPreviewFruit();
+            
+            if (this.dropLine) {
+                this.dropLine.setVisible(true);
             }
         });
     }
 
-    createFruitBody(x, y, fruitIndex) {
+    createPhysicsFruit(x, y, fruitIndex, applyForce = false) {
         const fruit = FRUITS[fruitIndex];
-
-        // Create graphics
-        const graphics = this.add.graphics();
-        graphics.fillStyle(fruit.color, 1);
-        graphics.fillCircle(0, 0, fruit.radius);
-        graphics.lineStyle(3, 0xffffff, 0.3);
-        graphics.strokeCircle(0, 0, fruit.radius);
-
-        // Create emoji
+        
+        // Create visual container
+        const container = this.add.container(x, y);
+        
+        // Main circle
+        const circle = this.add.graphics();
+        circle.fillStyle(fruit.color, 1);
+        circle.fillCircle(0, 0, fruit.radius);
+        
+        // Highlight
+        circle.fillStyle(0xffffff, 0.2);
+        circle.fillCircle(-fruit.radius * 0.3, -fruit.radius * 0.3, fruit.radius * 0.3);
+        
+        // Border
+        circle.lineStyle(2, 0x000000, 0.1);
+        circle.strokeCircle(0, 0, fruit.radius);
+        
+        // Emoji
         const emoji = this.add.text(0, 0, fruit.emoji, {
             fontSize: (fruit.radius * 1.2) + 'px'
         }).setOrigin(0.5);
-
-        // Create container
-        const container = this.add.container(x, y, [graphics, emoji]);
-
+        
+        container.add([circle, emoji]);
+        
         // Create physics body
         const body = this.matter.add.circle(x, y, fruit.radius, {
-            restitution: 0.2,
-            friction: 0.5,
+            restitution: 0.1,
+            friction: 0.3,
             frictionAir: 0.01,
-            label: 'fruit',
-            fruitIndex: fruitIndex
+            density: 0.001,
+            label: 'fruit'
         });
-
-        // Create fruit object (NOT using event listeners!)
-        const fruitObj = {
-            container,
-            body,
-            fruitIndex,
-            id: Date.now() + Math.random(), // Unique ID
-            merged: false,
-            dangerTime: null
+        
+        // Store custom data on body
+        body.fruitIndex = fruitIndex;
+        body.gameContainer = container;
+        body.id = Date.now() + Math.random();
+        body.isMerged = false;
+        
+        // Apply random force if requested (for shake powerup)
+        if (applyForce) {
+            const fx = Phaser.Math.Between(-5, 5) * 0.001;
+            const fy = Phaser.Math.Between(-3, 0) * 0.001;
+            this.matter.body.applyForce(body, body.position, { x: fx, y: fy });
+        }
+        
+        // Sync container position with physics body
+        const updateEvent = () => {
+            if (container.active && body.position) {
+                container.setPosition(body.position.x, body.position.y);
+                container.setRotation(body.angle);
+            }
         };
-
-        // Store reference on body for collision detection
-        body.fruitObj = fruitObj;
-
-        return fruitObj;
+        
+        this.events.on('update', updateEvent);
+        
+        // Store cleanup reference
+        container.updateEvent = updateEvent;
+        
+        return { body, container, fruitIndex };
     }
 
-    // ---------- Collision Handling ----------
-    handleCollision(event) {
+    // ---------- Collision & Merge System ----------
+    
+    onCollision(event) {
         const pairs = event.pairs;
-
-        for (let pair of pairs) {
+        
+        for (const pair of pairs) {
             const bodyA = pair.bodyA;
             const bodyB = pair.bodyB;
-
+            
             // Check if both are fruits
-            if (bodyA.label === 'fruit' && bodyB.label === 'fruit') {
-                const fruitA = bodyA.fruitObj;
-                const fruitB = bodyB.fruitObj;
-
-                // Check valid and same type
-                if (fruitA && fruitB && 
-                    !fruitA.merged && !fruitB.merged &&
-                    fruitA.fruitIndex === fruitB.fruitIndex && 
-                    fruitA.fruitIndex < FRUITS.length - 1) {
-                    
-                    // Mark as merged immediately to prevent double merge
-                    fruitA.merged = true;
-                    fruitB.merged = true;
-
-                    // Queue the merge (process in update to avoid physics issues)
-                    this.mergeQueue.push({ fruitA, fruitB });
-                }
+            if (bodyA.label !== 'fruit' || bodyB.label !== 'fruit') continue;
+            
+            // Check if same type and not already queued for merge
+            if (bodyA.fruitIndex === bodyB.fruitIndex && 
+                !bodyA.isMerged && !bodyB.isMerged &&
+                bodyA.fruitIndex < FRUITS.length - 1) {
+                
+                // Mark as pending merge
+                bodyA.isMerged = true;
+                bodyB.isMerged = true;
+                
+                // Add to merge queue
+                this.mergeQueue.push({
+                    bodyA,
+                    bodyB,
+                    fruitIndex: bodyA.fruitIndex
+                });
             }
         }
     }
 
-    // ---------- Merge Logic ----------
     processMergeQueue() {
-        while (this.mergeQueue.length > 0) {
-            const { fruitA, fruitB } = this.mergeQueue.shift();
-            this.mergeFruits(fruitA, fruitB);
-        }
+        if (this.mergeQueue.length === 0) return;
+        
+        // Process one merge at a time to prevent issues
+        const merge = this.mergeQueue.shift();
+        
+        if (!merge.bodyA || !merge.bodyB) return;
+        if (!merge.bodyA.position || !merge.bodyB.position) return;
+        
+        this.executeMerge(merge.bodyA, merge.bodyB, merge.fruitIndex);
     }
 
-    mergeFruits(fruitA, fruitB) {
-        // Double check they haven't been removed
-        if (!fruitA.body || !fruitB.body) return;
-
-        const newIndex = fruitA.fruitIndex + 1;
-        const newFruit = FRUITS[newIndex];
-
+    executeMerge(bodyA, bodyB, fruitIndex) {
         // Calculate merge position
-        const newX = (fruitA.body.position.x + fruitB.body.position.x) / 2;
-        const newY = (fruitA.body.position.y + fruitB.body.position.y) / 2;
-
+        const newX = (bodyA.position.x + bodyB.position.x) / 2;
+        const newY = (bodyA.position.y + bodyB.position.y) / 2;
+        const newIndex = fruitIndex + 1;
+        const newFruit = FRUITS[newIndex];
+        
         // Remove old fruits
-        this.removeFruit(fruitA);
-        this.removeFruit(fruitB);
-
+        this.removeFruit(bodyA);
+        this.removeFruit(bodyB);
+        
         // Create new fruit
-        const newFruitObj = this.createFruitBody(newX, newY, newIndex);
+        const newFruitObj = this.createPhysicsFruit(newX, newY, newIndex);
         this.fruits.push(newFruitObj);
-
+        
+        // Give slight upward impulse for juicy feel
+        this.matter.body.applyForce(newFruitObj.body, 
+            newFruitObj.body.position, 
+            { x: 0, y: -0.02 }
+        );
+        
         // Add score
-        score += newFruit.score;
+        const points = newFruit.score * GameState.scoreMultiplier;
+        GameState.score += points;
         this.updateUI();
-
-        // Play effect
-        this.playMergeEffect(newX, newY, newFruit);
+        
+        // Visual effects
+        this.playMergeEffect(newX, newY, newFruit, points);
+        
+        // Haptic feedback
+        if (window.TelegramGame) {
+            window.TelegramGame.hapticFeedback('medium');
+        }
+        
+        // Notify score update
+        if (window.TelegramGame) {
+            window.TelegramGame.onScoreUpdate(GameState.score);
+        }
     }
 
-    removeFruit(fruitObj) {
-        // Destroy container
-        if (fruitObj.container) {
-            fruitObj.container.destroy();
-            fruitObj.container = null;
-        }
-
-        // Remove physics body
-        if (fruitObj.body) {
-            this.matter.world.remove(fruitObj.body);
-            fruitObj.body = null;
-        }
-
-        // Remove from array
-        const index = this.fruits.indexOf(fruitObj);
-        if (index > -1) {
+    removeFruit(body) {
+        if (!body) return;
+        
+        // Find and remove from array
+        const index = this.fruits.findIndex(f => f.body === body);
+        if (index !== -1) {
+            const fruitObj = this.fruits[index];
+            
+            // Remove update listener
+            if (fruitObj.container && fruitObj.container.updateEvent) {
+                this.events.off('update', fruitObj.container.updateEvent);
+            }
+            
+            // Destroy container
+            if (fruitObj.container) {
+                fruitObj.container.destroy();
+            }
+            
+            // Remove from array
             this.fruits.splice(index, 1);
         }
+        
+        // Remove physics body
+        try {
+            this.matter.world.remove(body);
+        } catch (e) {
+            // Body might already be removed
+        }
     }
 
-    // ---------- Effects ----------
-    playMergeEffect(x, y, fruit) {
+    playMergeEffect(x, y, fruit, points) {
         // Particle burst
-        const particles = this.add.graphics();
-        particles.fillStyle(fruit.color, 0.8);
-        
         for (let i = 0; i < 8; i++) {
             const angle = (i / 8) * Math.PI * 2;
-            particles.fillCircle(
-                x + Math.cos(angle) * 10,
-                y + Math.sin(angle) * 10,
-                5
+            const particle = this.add.circle(
+                x + Math.cos(angle) * 5,
+                y + Math.sin(angle) * 5,
+                6, fruit.color
             );
+            
+            this.tweens.add({
+                targets: particle,
+                x: x + Math.cos(angle) * 40,
+                y: y + Math.sin(angle) * 40,
+                alpha: 0,
+                scale: 0,
+                duration: 300,
+                ease: 'Power2',
+                onComplete: () => particle.destroy()
+            });
         }
-
+        
+        // Ring effect
+        const ring = this.add.circle(x, y, fruit.radius, fruit.color, 0);
+        ring.setStrokeStyle(3, fruit.color);
+        
         this.tweens.add({
-            targets: particles,
-            scaleX: 2,
-            scaleY: 2,
+            targets: ring,
+            scale: 2,
             alpha: 0,
-            duration: 300,
-            onComplete: () => particles.destroy()
+            duration: 400,
+            ease: 'Power2',
+            onComplete: () => ring.destroy()
         });
-
+        
         // Score popup
-        const scoreText = this.add.text(x, y - 30, '+' + fruit.score, {
+        const scoreText = this.add.text(x, y - 20, '+' + points, {
             fontSize: '24px',
             fontStyle: 'bold',
             color: '#ffffff',
             stroke: '#000000',
-            strokeThickness: 3
+            strokeThickness: 4
         }).setOrigin(0.5);
-
+        
         this.tweens.add({
             targets: scoreText,
-            y: y - 80,
+            y: y - 70,
             alpha: 0,
             duration: 800,
+            ease: 'Power2',
             onComplete: () => scoreText.destroy()
         });
     }
 
-    // ---------- Game Over Check ----------
+    // ---------- Game Over ----------
+    
     checkGameOver() {
-        if (gameOver) return;
-
-        for (let fruitObj of this.fruits) {
-            if (!fruitObj.body || fruitObj.merged) continue;
-
-            const topY = fruitObj.body.position.y - FRUITS[fruitObj.fruitIndex].radius;
-            const velocity = Math.abs(fruitObj.body.velocity.y);
-
+        if (GameState.gameOver) return;
+        
+        for (const fruitObj of this.fruits) {
+            if (!fruitObj.body || !fruitObj.body.position) continue;
+            
+            const fruit = FRUITS[fruitObj.fruitIndex];
+            const topY = fruitObj.body.position.y - fruit.radius;
+            const velocity = Math.abs(fruitObj.body.velocity?.y || 0);
+            
             // Check if above danger line and nearly stationary
-            if (topY < DANGER_LINE_Y && velocity < 0.5) {
-                if (!fruitObj.dangerTime) {
-                    fruitObj.dangerTime = Date.now();
-                } else if (Date.now() - fruitObj.dangerTime > 2000) {
-                    this.endGame();
+            if (topY < CONFIG.DANGER_LINE_Y && velocity < 0.3) {
+                if (!fruitObj.dangerStartTime) {
+                    fruitObj.dangerStartTime = Date.now();
+                } else if (Date.now() - fruitObj.dangerStartTime > CONFIG.DANGER_TIME) {
+                    this.triggerGameOver();
                     return;
                 }
             } else {
-                fruitObj.dangerTime = null;
+                fruitObj.dangerStartTime = null;
             }
         }
     }
 
-    endGame() {
-        gameOver = true;
-
+    triggerGameOver() {
+        GameState.gameOver = true;
+        
         // Update best score
-        if (score > bestScore) {
-            bestScore = score;
-            localStorage.setItem('fruitMergeBest', bestScore);
+        const isNewBest = GameState.score > GameState.bestScore;
+        if (isNewBest) {
+            GameState.bestScore = GameState.score;
+            localStorage.setItem(CONFIG.STORAGE_BEST_SCORE, GameState.bestScore);
         }
-
+        
+        // Update UI
+        document.getElementById('final-score').textContent = GameState.score;
+        document.getElementById('modal-best-score').textContent = GameState.bestScore;
+        document.getElementById('new-best-badge').style.display = isNewBest ? 'block' : 'none';
+        
+        // Show/hide revive button based on availability
+        const reviveBtn = document.getElementById('revive-btn');
+        const powerups = JSON.parse(localStorage.getItem(CONFIG.STORAGE_POWERUPS) || '{}');
+        const canRevive = GameState.canRevive && (powerups.revive > 0);
+        reviveBtn.style.display = canRevive ? 'flex' : 'none';
+        
         // Show modal
-        document.getElementById('final-score').textContent = score;
-        document.getElementById('modal-best-score').textContent = bestScore;
         document.getElementById('game-over-modal').classList.add('show');
-
-        // Telegram callback
+        
+        // Haptic feedback
         if (window.TelegramGame) {
-            window.TelegramGame.onGameOver(score, bestScore);
+            window.TelegramGame.hapticFeedback('error');
+            window.TelegramGame.onGameOver(GameState.score, GameState.bestScore);
         }
     }
 
-    // ---------- UI Update ----------
+    // ---------- UI Updates ----------
+    
     updateUI() {
-        const currentScoreEl = document.getElementById('current-score');
-        const bestScoreEl = document.getElementById('best-score');
-        if (currentScoreEl) currentScoreEl.textContent = score;
-        if (bestScoreEl) bestScoreEl.textContent = bestScore;
+        document.getElementById('current-score').textContent = GameState.score;
+        document.getElementById('best-score').textContent = GameState.bestScore;
+        
+        // Update powerup counts
+        const powerups = JSON.parse(localStorage.getItem(CONFIG.STORAGE_POWERUPS) || '{}');
+        document.getElementById('clear-count').textContent = powerups.clear_small || 0;
+        document.getElementById('shake-count').textContent = powerups.shake || 0;
+        document.getElementById('upgrade-count').textContent = powerups.upgrade || 0;
+        
+        // Enable/disable powerup buttons
+        document.getElementById('powerup-clear').disabled = !(powerups.clear_small > 0);
+        document.getElementById('powerup-shake').disabled = !(powerups.shake > 0);
+        document.getElementById('powerup-upgrade').disabled = !(powerups.upgrade > 0);
+    }
+
+    // ---------- Power-ups ----------
+    
+    usePowerup(type) {
+        if (GameState.gameOver || GameState.isDropping) return false;
+        
+        const powerups = JSON.parse(localStorage.getItem(CONFIG.STORAGE_POWERUPS) || '{}');
+        if (!powerups[type] || powerups[type] <= 0) return false;
+        
+        let success = false;
+        
+        switch (type) {
+            case 'clear_small':
+                success = this.clearSmallFruits();
+                break;
+            case 'shake':
+                success = this.shakeFruits();
+                break;
+            case 'upgrade':
+                success = this.upgradeRandomFruit();
+                break;
+        }
+        
+        if (success) {
+            powerups[type]--;
+            localStorage.setItem(CONFIG.STORAGE_POWERUPS, JSON.stringify(powerups));
+            this.updateUI();
+            
+            if (window.TelegramGame) {
+                window.TelegramGame.hapticFeedback('success');
+            }
+        }
+        
+        return success;
+    }
+
+    clearSmallFruits() {
+        // Find 3 smallest fruits
+        const sorted = [...this.fruits].sort((a, b) => a.fruitIndex - b.fruitIndex);
+        const toRemove = sorted.slice(0, Math.min(3, sorted.length));
+        
+        if (toRemove.length === 0) return false;
+        
+        for (const fruitObj of toRemove) {
+            // Effect
+            const pos = fruitObj.body.position;
+            this.playRemoveEffect(pos.x, pos.y);
+            
+            // Remove
+            this.removeFruit(fruitObj.body);
+        }
+        
+        showToast(`Cleared ${toRemove.length} fruits! 🧹`);
+        return true;
+    }
+
+    shakeFruits() {
+        if (this.fruits.length === 0) return false;
+        
+        for (const fruitObj of this.fruits) {
+            const fx = Phaser.Math.Between(-10, 10) * 0.002;
+            const fy = Phaser.Math.Between(-8, -2) * 0.002;
+            this.matter.body.applyForce(fruitObj.body, fruitObj.body.position, { x: fx, y: fy });
+        }
+        
+        // Camera shake effect
+        this.cameras.main.shake(200, 0.01);
+        
+        showToast('Shake! 📳');
+        return true;
+    }
+
+    upgradeRandomFruit() {
+        // Find fruits that can be upgraded
+        const upgradeable = this.fruits.filter(f => f.fruitIndex < FRUITS.length - 1);
+        if (upgradeable.length === 0) return false;
+        
+        // Pick random fruit
+        const target = Phaser.Utils.Array.GetRandom(upgradeable);
+        const pos = target.body.position;
+        const newIndex = target.fruitIndex + 1;
+        
+        // Remove old
+        this.removeFruit(target.body);
+        
+        // Create upgraded
+        const newFruit = this.createPhysicsFruit(pos.x, pos.y, newIndex);
+        this.fruits.push(newFruit);
+        
+        // Effect
+        this.playMergeEffect(pos.x, pos.y, FRUITS[newIndex], 0);
+        
+        showToast(`Upgraded to ${FRUITS[newIndex].emoji}!`);
+        return true;
+    }
+
+    playRemoveEffect(x, y) {
+        const poof = this.add.text(x, y, '💨', { fontSize: '32px' }).setOrigin(0.5);
+        
+        this.tweens.add({
+            targets: poof,
+            y: y - 50,
+            alpha: 0,
+            scale: 2,
+            duration: 500,
+            onComplete: () => poof.destroy()
+        });
+    }
+
+    // ---------- Revive ----------
+    
+    revive() {
+        if (!GameState.canRevive) return false;
+        
+        // Use revive powerup
+        const powerups = JSON.parse(localStorage.getItem(CONFIG.STORAGE_POWERUPS) || '{}');
+        if (!powerups.revive || powerups.revive <= 0) return false;
+        
+        powerups.revive--;
+        localStorage.setItem(CONFIG.STORAGE_POWERUPS, JSON.stringify(powerups));
+        
+        // Remove top fruits above danger line
+        const toRemove = this.fruits.filter(f => {
+            const fruit = FRUITS[f.fruitIndex];
+            return f.body.position.y - fruit.radius < CONFIG.DANGER_LINE_Y + 50;
+        });
+        
+        for (const fruitObj of toRemove) {
+            this.playRemoveEffect(fruitObj.body.position.x, fruitObj.body.position.y);
+            this.removeFruit(fruitObj.body);
+        }
+        
+        // Reset state
+        GameState.gameOver = false;
+        GameState.canRevive = false;  // Can only revive once per game
+        GameState.isDropping = false;
+        
+        // Hide modal
+        document.getElementById('game-over-modal').classList.remove('show');
+        
+        // Create new preview
+        this.generateNextFruit();
+        this.createPreviewFruit();
+        if (this.dropLine) {
+            this.dropLine.setVisible(true);
+        }
+        
+        this.updateUI();
+        showToast('Revived! 💫');
+        
+        return true;
     }
 
     // ---------- Restart ----------
+    
     restart() {
-        // Clear all fruits
-        for (let fruitObj of this.fruits) {
-            if (fruitObj.container) fruitObj.container.destroy();
-            if (fruitObj.body) this.matter.world.remove(fruitObj.body);
+        // Clean up all fruits
+        for (const fruitObj of this.fruits) {
+            if (fruitObj.container) {
+                if (fruitObj.container.updateEvent) {
+                    this.events.off('update', fruitObj.container.updateEvent);
+                }
+                fruitObj.container.destroy();
+            }
+            try {
+                this.matter.world.remove(fruitObj.body);
+            } catch (e) {}
         }
+        
         this.fruits = [];
         this.mergeQueue = [];
-
+        
         // Reset state
-        score = 0;
-        gameOver = false;
-        isDropping = false;
-
-        // Regenerate
-        this.generateNextFruit();
+        GameState.score = 0;
+        GameState.gameOver = false;
+        GameState.isDropping = false;
+        GameState.canRevive = true;
+        
+        // Generate new fruits
+        this.nextFruitIndex = Phaser.Math.Between(0, CONFIG.MAX_SPAWN_LEVEL);
         this.generateNextFruit();
         this.createPreviewFruit();
+        
+        if (this.dropLine) {
+            this.dropLine.setVisible(true);
+        }
+        
         this.updateUI();
-
+        
         // Hide modal
         document.getElementById('game-over-modal').classList.remove('show');
-    }
-
-    // ---------- Update Loop (Called Every Frame) ----------
-    update() {
-        // Process any pending merges
-        this.processMergeQueue();
-
-        // Sync container positions with physics bodies
-        for (let fruitObj of this.fruits) {
-            if (fruitObj.body && fruitObj.container && fruitObj.container.active) {
-                fruitObj.container.setPosition(
-                    fruitObj.body.position.x,
-                    fruitObj.body.position.y
-                );
-                fruitObj.container.setRotation(fruitObj.body.angle);
-            }
+        
+        // Notify Telegram
+        if (window.TelegramGame) {
+            window.TelegramGame.onGameStart();
         }
     }
 }
 
-// ---------- Phaser Configuration ----------
-const config = {
-    type: Phaser.AUTO,
-    width: GAME_WIDTH,
-    height: GAME_HEIGHT,
-    parent: 'game-container',
-    backgroundColor: '#fef3c7',
-    physics: {
-        default: 'matter',
-        matter: {
-            gravity: { y: 1 },
-            debug: false
-        }
-    },
-    scene: GameScene
-};
+// ==========================================
+// Initialize Phaser Game
+// ==========================================
 
-// ---------- Start Game ----------
-const game = new Phaser.Game(config);
+function initGame() {
+    const config = {
+        type: Phaser.AUTO,
+        width: CONFIG.GAME_WIDTH,
+        height: CONFIG.GAME_HEIGHT,
+        parent: 'game-container',
+        backgroundColor: '#fef9e7',
+        physics: {
+            default: 'matter',
+            matter: {
+                gravity: { y: CONFIG.GRAVITY },
+                debug: false
+            }
+        },
+        scene: GameScene
+    };
+    
+    game = new Phaser.Game(config);
+}
 
-// ---------- Button Listeners ----------
-document.getElementById('restart-btn').addEventListener('click', () => {
-    game.scene.getScene('GameScene').restart();
-});
+// ==========================================
+// Export Game API
+// ==========================================
 
-document.getElementById('share-btn').addEventListener('click', () => {
-    if (window.TelegramGame) {
-        window.TelegramGame.shareScore(score);
-    } else {
-        const text = `I scored ${score} points in Fruit Merge Game! Can you beat me?`;
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(text);
-            alert('Score copied to clipboard!');
-        }
-    }
-});
-
-// ---------- Prevent Mobile Scroll ----------
-document.body.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-}, { passive: false });
-
-// ---------- Export API ----------
 window.GameAPI = {
-    getScore: () => score,
-    getBestScore: () => bestScore,
-    restart: () => game.scene.getScene('GameScene').restart()
+    getScore: () => GameState.score,
+    getBestScore: () => GameState.bestScore,
+    isGameOver: () => GameState.gameOver,
+    restart: () => gameScene?.restart(),
+    revive: () => gameScene?.revive(),
+    usePowerup: (type) => gameScene?.usePowerup(type),
+    init: initGame
 };

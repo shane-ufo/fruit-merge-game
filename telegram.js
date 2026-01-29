@@ -380,6 +380,109 @@
         init
     };
 
+    // ---------- Analytics Tracking ----------
+    
+    let heartbeatInterval = null;
+    
+    function startHeartbeat() {
+        // Send heartbeat every 30 seconds
+        sendHeartbeat();
+        heartbeatInterval = setInterval(sendHeartbeat, 30000);
+    }
+    
+    function stopHeartbeat() {
+        if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+        }
+    }
+    
+    function sendHeartbeat() {
+        const user = userData;
+        const score = window.GameAPI?.getScore() || 0;
+        
+        fetch(`${CONFIG.BACKEND_URL}/heartbeat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId: user?.id || 'guest_' + Date.now(),
+                username: user?.first_name || 'Guest',
+                avatar: '🎮',
+                score
+            })
+        }).catch(e => console.log('[Heartbeat] Error:', e));
+    }
+    
+    function trackGameStart() {
+        const user = userData;
+        fetch(`${CONFIG.BACKEND_URL}/game/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId: user?.id || 'guest',
+                username: user?.first_name || 'Guest'
+            })
+        }).catch(e => {});
+    }
+    
+    function trackGameEnd(score) {
+        const user = userData;
+        fetch(`${CONFIG.BACKEND_URL}/game/end`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId: user?.id || 'guest',
+                username: user?.first_name || 'Guest',
+                score
+            })
+        }).catch(e => {});
+    }
+    
+    // Start heartbeat when page loads
+    startHeartbeat();
+    
+    // Stop when page unloads
+    window.addEventListener('beforeunload', stopHeartbeat);
+
+    // ---------- Export API ----------
+    
+    window.TelegramGame = {
+        // State
+        isTelegram,
+        getUser: () => userData,
+        getReferralCode: () => referralCode,
+        getReferralLink,
+
+        // UI
+        hapticFeedback,
+        showPopup,
+        showConfirm,
+        showAlert,
+        showMainButton,
+        hideMainButton,
+
+        // Sharing
+        shareScore,
+        shareReferralLink,
+
+        // Payments
+        requestPayment,
+        grantPurchase,
+
+        // Storage
+        cloudStorage,
+        saveScoreToCloud,
+        loadBestScoreFromCloud,
+
+        // Callbacks
+        onGameStart: () => { onGameStart(); trackGameStart(); },
+        onScoreUpdate,
+        onGameOver: (score, best) => { onGameOver(score, best); trackGameEnd(score); },
+
+        // Init
+        init
+    };
+
     // Auto-initialize
     init();
 

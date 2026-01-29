@@ -1,5 +1,6 @@
 /* ==========================================
-   Fruit Merge Game - Styles
+   Fruit Merge Game - Styles v2.0
+   Added: Sound settings, Control hints
    ========================================== */
 
 * {
@@ -37,7 +38,7 @@ body {
     padding: 12px 20px;
     margin-bottom: 10px;
     display: flex;
-    gap: 20px;
+    gap: 15px;
     align-items: center;
     color: white;
 }
@@ -62,9 +63,9 @@ body {
     background: rgba(255, 255, 255, 0.15);
     border: none;
     border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    font-size: 18px;
+    width: 38px;
+    height: 38px;
+    font-size: 16px;
     cursor: pointer;
     transition: all 0.2s;
 }
@@ -72,6 +73,10 @@ body {
 .icon-btn:hover {
     background: rgba(255, 255, 255, 0.25);
     transform: scale(1.1);
+}
+
+.icon-btn:active {
+    transform: scale(0.95);
 }
 
 /* ---------- Game Container ---------- */
@@ -114,6 +119,19 @@ body {
     justify-content: center;
     font-size: 24px;
     transition: all 0.3s;
+}
+
+/* ---------- Control Hint ---------- */
+#control-hint {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+    margin-top: 8px;
+    animation: fadeInOut 4s ease-in-out;
+}
+
+@keyframes fadeInOut {
+    0%, 100% { opacity: 0; }
+    20%, 80% { opacity: 1; }
 }
 
 /* ---------- Power-ups Bar ---------- */
@@ -383,6 +401,102 @@ body {
     margin-top: 3px;
 }
 
+/* ---------- Sound Settings Modal ---------- */
+.sound-content {
+    text-align: left;
+}
+
+.sound-toggle-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.toggle-btn {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    border: none;
+    padding: 8px 20px;
+    border-radius: 20px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.toggle-btn.off {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.sound-packs-section h3 {
+    margin-bottom: 15px;
+    font-size: 16px;
+}
+
+.sound-pack-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sound-pack-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+}
+
+.sound-pack-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.sound-pack-item.active {
+    border-color: #38ef7d;
+    background: rgba(56, 239, 125, 0.1);
+}
+
+.sound-pack-item.locked {
+    opacity: 0.6;
+}
+
+.pack-icon {
+    font-size: 24px;
+}
+
+.pack-name {
+    flex: 1;
+    font-weight: 500;
+}
+
+.pack-status {
+    font-size: 14px;
+    color: #38ef7d;
+}
+
+.sound-pack-item.locked .pack-status {
+    color: #ffd700;
+}
+
+.premium-promo {
+    margin-top: 20px;
+    padding: 20px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+    border-radius: 15px;
+    text-align: center;
+}
+
+.premium-promo p {
+    margin-bottom: 15px;
+}
+
 /* ---------- Leaderboard Modal ---------- */
 .leaderboard-tabs {
     display: flex;
@@ -622,6 +736,11 @@ body {
     #next-fruit {
         padding: 8px 15px;
         margin-top: 5px;
+    }
+    
+    #control-hint {
+        margin-top: 5px;
+        font-size: 11px;
     }
     
     #powerups-bar {

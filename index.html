@@ -18,8 +18,9 @@
                 <div class="score-label">BEST</div>
                 <div class="score-value" id="best-score">0</div>
             </div>
-            <button class="icon-btn" id="shop-btn">🛒</button>
-            <button class="icon-btn" id="leaderboard-btn">🏆</button>
+            <button class="icon-btn" id="sound-btn" title="Toggle Sound">🔊</button>
+            <button class="icon-btn" id="shop-btn" title="Shop">🛒</button>
+            <button class="icon-btn" id="leaderboard-btn" title="Leaderboard">🏆</button>
         </div>
         
         <!-- Game Canvas Container -->
@@ -29,6 +30,11 @@
         <div id="next-fruit">
             <div id="next-fruit-label">NEXT</div>
             <div id="next-fruit-display"></div>
+        </div>
+
+        <!-- Control Hint (for new players) -->
+        <div id="control-hint">
+            👆 Drag to move • Release to drop
         </div>
 
         <!-- Power-ups Bar -->
@@ -80,6 +86,49 @@
             </div>
             <div class="shop-items" id="shop-items-container">
                 <!-- Items populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Sound Settings Modal -->
+    <div id="sound-modal" class="modal">
+        <div class="modal-content sound-content">
+            <div class="modal-header">
+                <h2>🔊 Sound Settings</h2>
+                <button class="close-btn" id="close-sound">&times;</button>
+            </div>
+            
+            <div class="sound-toggle-section">
+                <span>Sound Effects</span>
+                <button class="toggle-btn" id="sound-toggle-btn">ON</button>
+            </div>
+            
+            <div class="sound-packs-section">
+                <h3>🎵 Sound Packs</h3>
+                <div class="sound-pack-list" id="sound-pack-list">
+                    <div class="sound-pack-item active" data-pack="default">
+                        <span class="pack-icon">🎮</span>
+                        <span class="pack-name">Default</span>
+                        <span class="pack-status">✓</span>
+                    </div>
+                    <div class="sound-pack-item locked" data-pack="cute">
+                        <span class="pack-icon">🌸</span>
+                        <span class="pack-name">Cute</span>
+                        <span class="pack-status">🔒 50⭐</span>
+                    </div>
+                    <div class="sound-pack-item locked" data-pack="retro">
+                        <span class="pack-icon">👾</span>
+                        <span class="pack-name">Retro</span>
+                        <span class="pack-status">🔒 50⭐</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="premium-promo" id="premium-promo">
+                <p>🎁 Unlock ALL sound packs forever!</p>
+                <button class="btn btn-buy" id="buy-premium-sounds">
+                    Premium Sounds - 100⭐
+                </button>
             </div>
         </div>
     </div>

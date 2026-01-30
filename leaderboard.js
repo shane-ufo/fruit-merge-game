@@ -1,181 +1,220 @@
 // ==========================================
-// Leaderboard System
+// Leaderboard System v3.2
+// Real data + VIP colored names + Friends
 // ==========================================
 
 const Leaderboard = {
     currentTab: 'global',
+    data: {
+        global: [],
+        friends: []
+    },
+    userRank: null,
     
-    // Mock data for demo (in production, fetch from backend)
-    mockData: {
-        global: [
-            { id: 1, name: 'Alex', score: 12500, avatar: '🦊' },
-            { id: 2, name: 'Maria', score: 11200, avatar: '🐱' },
-            { id: 3, name: 'John', score: 10800, avatar: '🐶' },
-            { id: 4, name: 'Emma', score: 9500, avatar: '🐰' },
-            { id: 5, name: 'David', score: 8700, avatar: '🦁' },
-            { id: 6, name: 'Sophie', score: 7900, avatar: '🐼' },
-            { id: 7, name: 'Mike', score: 7200, avatar: '🐨' },
-            { id: 8, name: 'Lisa', score: 6500, avatar: '🦄' },
-            { id: 9, name: 'Tom', score: 5800, avatar: '🐸' },
-            { id: 10, name: 'Anna', score: 5100, avatar: '🐙' },
-        ],
-        friends: [
-            { id: 2, name: 'Maria', score: 11200, avatar: '🐱' },
-            { id: 5, name: 'David', score: 8700, avatar: '🦁' },
-            { id: 8, name: 'Lisa', score: 6500, avatar: '🦄' },
-        ],
-        weekly: [
-            { id: 4, name: 'Emma', score: 4500, avatar: '🐰' },
-            { id: 1, name: 'Alex', score: 4200, avatar: '🦊' },
-            { id: 7, name: 'Mike', score: 3800, avatar: '🐨' },
-            { id: 3, name: 'John', score: 3200, avatar: '🐶' },
-            { id: 9, name: 'Tom', score: 2900, avatar: '🐸' },
-        ]
-    },
-
-    // Initialize
     init() {
-        this.setupEventListeners();
+        this.setupTabs();
+        this.loadLeaderboard();
     },
-
-    // Setup event listeners
-    setupEventListeners() {
-        // Leaderboard button
-        document.getElementById('leaderboard-btn')?.addEventListener('click', () => {
-            this.openLeaderboard();
-        });
-
-        // Close button
-        document.getElementById('close-leaderboard')?.addEventListener('click', () => {
-            this.closeLeaderboard();
-        });
-
-        // Tab buttons
+    
+    setupTabs() {
         document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const tab = e.target.dataset.tab;
-                this.switchTab(tab);
+            btn.addEventListener('click', () => {
+                this.switchTab(btn.dataset.tab);
             });
         });
-
-        // Close on backdrop click
-        document.getElementById('leaderboard-modal')?.addEventListener('click', (e) => {
-            if (e.target.id === 'leaderboard-modal') {
-                this.closeLeaderboard();
-            }
-        });
     },
-
-    // Open leaderboard
-    openLeaderboard() {
-        this.renderLeaderboard();
-        document.getElementById('leaderboard-modal')?.classList.add('show');
-    },
-
-    // Close leaderboard
-    closeLeaderboard() {
-        document.getElementById('leaderboard-modal')?.classList.remove('show');
-    },
-
-    // Switch tab
+    
     switchTab(tab) {
         this.currentTab = tab;
         
-        // Update tab buttons
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.tab === tab);
         });
         
         this.renderLeaderboard();
+        
+        // Load friends data if needed
+        if (tab === 'friends') {
+            this.loadFriendsLeaderboard();
+        }
     },
-
-    // Render leaderboard
+    
+    async loadLeaderboard() {
+        try {
+            // Load global leaderboard
+            const response = await fetch(`${CONFIG.BACKEND_URL}/leaderboard?limit=100`);
+            this.data.global = await response.json();
+            
+            // Get user rank
+            const tgUser = window.TelegramGame?.getUser();
+            if (tgUser) {
+                const rankRes = await fetch(`${CONFIG.BACKEND_URL}/leaderboard/rank/${tgUser.id}`);
+                const rankData = await rankRes.json();
+                this.userRank = rankData.rank;
+            }
+            
+            this.renderLeaderboard();
+        } catch (e) {
+            console.error('[Leaderboard] Load error:', e);
+            this.renderError();
+        }
+    },
+    
+    async loadFriendsLeaderboard() {
+        try {
+            const tgUser = window.TelegramGame?.getUser();
+            if (!tgUser) {
+                this.data.friends = [];
+                this.renderLeaderboard();
+                return;
+            }
+            
+            const response = await fetch(`${CONFIG.BACKEND_URL}/leaderboard/friends/${tgUser.id}`);
+            const data = await response.json();
+            this.data.friends = data.leaderboard || [];
+            
+            this.renderLeaderboard();
+        } catch (e) {
+            console.error('[Leaderboard] Friends load error:', e);
+        }
+    },
+    
     renderLeaderboard() {
         const container = document.getElementById('leaderboard-list');
         if (!container) return;
-
-        const data = this.mockData[this.currentTab] || [];
-        const myScore = window.GameAPI?.getBestScore() || 0;
-        const myName = window.TelegramGame?.getUser()?.first_name || 'You';
-
-        let html = '';
-
-        data.forEach((entry, index) => {
+        
+        const entries = this.currentTab === 'friends' ? this.data.friends : this.data.global;
+        const tgUser = window.TelegramGame?.getUser();
+        const currentUserId = tgUser?.id?.toString() || null;
+        
+        if (entries.length === 0) {
+            if (this.currentTab === 'friends') {
+                container.innerHTML = `
+                    <div class="leaderboard-empty">
+                        <p>No friends yet!</p>
+                        <p>Invite friends to compete with them.</p>
+                        <button class="btn btn-primary" onclick="FriendsSystem?.inviteFriend()">
+                            📨 Invite Friends
+                        </button>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = '<div class="leaderboard-empty">No scores yet. Be the first!</div>';
+            }
+            return;
+        }
+        
+        container.innerHTML = entries.map((entry, index) => {
             const rank = index + 1;
-            const isTop3 = rank <= 3;
-            const isYou = false;  // Would compare with actual user ID
-
-            let rankDisplay = rank;
-            if (rank === 1) rankDisplay = '🥇';
-            else if (rank === 2) rankDisplay = '🥈';
-            else if (rank === 3) rankDisplay = '🥉';
-
-            html += `
-                <div class="leaderboard-entry ${isTop3 ? 'top-3' : ''} ${isYou ? 'you' : ''}">
-                    <div class="rank ${isTop3 ? 'rank-medal' : ''}">${rankDisplay}</div>
-                    <div class="player-avatar">${entry.avatar}</div>
-                    <div class="player-name">${entry.name}</div>
-                    <div class="player-score">${this.formatScore(entry.score)}</div>
+            const isCurrentUser = entry.odairy === currentUserId || entry.userId === currentUserId;
+            const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+            
+            // Styled name with color
+            const styledName = this.getStyledName(entry);
+            
+            return `
+                <div class="leaderboard-entry ${rank <= 3 ? 'top-3' : ''} ${isCurrentUser ? 'you' : ''}">
+                    <div class="rank ${rank <= 3 ? 'medal' : ''}">${medal}</div>
+                    <div class="player-avatar">${entry.avatar || '🎮'}</div>
+                    <div class="player-info">
+                        <div class="player-name">${styledName}</div>
+                        ${entry.isVip ? '<span class="vip-badge">VIP</span>' : ''}
+                    </div>
+                    <div class="player-score">${entry.score?.toLocaleString() || 0}</div>
                 </div>
             `;
-        });
-
-        // If no data
-        if (data.length === 0) {
-            html = '<div style="text-align: center; padding: 40px; opacity: 0.5;">No data available</div>';
-        }
-
-        container.innerHTML = html;
-
-        // Update your rank
-        const yourRank = this.findUserRank(data, myScore);
-        document.getElementById('your-rank').textContent = yourRank ? `#${yourRank}` : '#--';
-    },
-
-    // Find user's rank
-    findUserRank(data, myScore) {
-        // Simple ranking based on score
-        let rank = 1;
-        for (const entry of data) {
-            if (entry.score > myScore) {
-                rank++;
+        }).join('');
+        
+        // Update user rank display
+        const rankDisplay = document.getElementById('your-rank');
+        if (rankDisplay) {
+            if (this.userRank) {
+                rankDisplay.textContent = `#${this.userRank}`;
+            } else {
+                rankDisplay.textContent = 'Not ranked';
             }
         }
-        return rank;
     },
-
-    // Format score with commas
-    formatScore(score) {
-        return score.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    
+    getStyledName(entry) {
+        const name = this.escapeHtml(entry.username || entry.displayName || 'Player');
+        const colorId = entry.nameColor;
+        
+        if (!colorId || colorId === 'default') {
+            return name;
+        }
+        
+        // VIP colors
+        const colors = {
+            gold: 'linear-gradient(90deg, #ffd700, #ffaa00)',
+            rainbow: 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #8b00ff)',
+            pink: 'linear-gradient(90deg, #ff69b4, #ff1493)',
+            blue: 'linear-gradient(90deg, #00bfff, #1e90ff)',
+            green: 'linear-gradient(90deg, #00ff88, #00cc66)',
+            purple: 'linear-gradient(90deg, #9370db, #8a2be2)'
+        };
+        
+        const gradient = colors[colorId];
+        if (!gradient) return name;
+        
+        return `<span style="
+            font-weight:bold;
+            background:${gradient};
+            -webkit-background-clip:text;
+            -webkit-text-fill-color:transparent;
+            background-clip:text;
+        ">${name}</span>`;
     },
-
-    // Submit score to leaderboard (production: send to backend)
+    
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    },
+    
+    renderError() {
+        const container = document.getElementById('leaderboard-list');
+        if (container) {
+            container.innerHTML = '<div class="leaderboard-empty">Failed to load leaderboard</div>';
+        }
+    },
+    
+    // Submit score to server
     async submitScore(score) {
-        const user = window.TelegramGame?.getUser();
-        
-        console.log('[Leaderboard] Submitting score:', score, 'for user:', user?.first_name);
-        
-        // In production, send to your backend:
-        // await fetch(`${CONFIG.BACKEND_URL}/leaderboard/submit`, {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify({
-        //         userId: user?.id,
-        //         score: score,
-        //         initData: window.Telegram?.WebApp?.initData
-        //     })
-        // });
-        
-        return true;
+        try {
+            const tgUser = window.TelegramGame?.getUser();
+            const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
+            
+            const userId = tgUser?.id || userData.odairy || 'guest';
+            const username = userData.displayName || tgUser?.first_name || 'Player';
+            
+            await fetch(`${CONFIG.BACKEND_URL}/leaderboard/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: userId,
+                    username: username,
+                    displayName: userData.displayName,
+                    score: score,
+                    avatar: userData.avatar || '🎮',
+                    nameColor: userData.nameColor || null,
+                    isVip: userData.isVip || false
+                })
+            });
+            
+            // Reload leaderboard
+            await this.loadLeaderboard();
+        } catch (e) {
+            console.error('[Leaderboard] Submit error:', e);
+        }
     },
-
-    // Fetch leaderboard from backend (production)
-    async fetchLeaderboard(type = 'global') {
-        // In production:
-        // const response = await fetch(`${CONFIG.BACKEND_URL}/leaderboard/${type}`);
-        // return response.json();
-        
-        return this.mockData[type] || [];
+    
+    // Refresh
+    refresh() {
+        this.loadLeaderboard();
+        if (this.currentTab === 'friends') {
+            this.loadFriendsLeaderboard();
+        }
     }
 };
 
@@ -184,92 +223,102 @@ const Leaderboard = {
 // ==========================================
 
 const ReferralSystem = {
+    stats: {
+        invited: 0,
+        earned: 0
+    },
     
-    // Initialize
     init() {
-        this.setupEventListeners();
-        this.loadReferralData();
+        this.loadStats();
+        this.checkReferral();
     },
-
-    // Setup event listeners
-    setupEventListeners() {
-        // Invite button (can be added to UI)
-        document.getElementById('invite-btn')?.addEventListener('click', () => {
-            this.sendInvite();
-        });
-
-        // Copy referral link
-        document.getElementById('copy-referral')?.addEventListener('click', () => {
-            this.copyReferralLink();
-        });
-
-        // Close referral modal
-        document.getElementById('close-referral')?.addEventListener('click', () => {
-            this.closeReferralModal();
-        });
-    },
-
-    // Load referral data
-    loadReferralData() {
+    
+    loadStats() {
         const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
+        this.stats.invited = userData.referralCount || 0;
+        this.stats.earned = userData.referralEarnings || 0;
+        this.updateUI();
+    },
+    
+    checkReferral() {
+        // Check if user came from a referral link
+        const urlParams = new URLSearchParams(window.location.search);
+        const refCode = urlParams.get('startapp') || urlParams.get('ref');
         
-        document.getElementById('friends-invited').textContent = userData.friendsInvited || 0;
-        document.getElementById('stars-earned').textContent = userData.referralStars || 0;
+        if (refCode && refCode.startsWith('ref_')) {
+            const referrerId = refCode.replace('ref_', '');
+            this.processReferral(referrerId);
+        }
         
-        // Set referral link
-        const linkInput = document.getElementById('referral-link-input');
-        if (linkInput && window.TelegramGame) {
-            linkInput.value = window.TelegramGame.getReferralLink();
+        // Also check Telegram start_param
+        const tgUser = window.TelegramGame?.getUser();
+        const startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+        
+        if (startParam && startParam.startsWith('ref_')) {
+            const referrerId = startParam.replace('ref_', '');
+            if (tgUser && referrerId !== String(tgUser.id)) {
+                this.processReferral(referrerId);
+            }
         }
     },
-
-    // Send invite
-    sendInvite() {
-        if (window.TelegramGame) {
-            window.TelegramGame.shareReferralLink();
+    
+    async processReferral(referrerId) {
+        const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
+        
+        // Don't process if already referred
+        if (userData.referredBy) return;
+        
+        const tgUser = window.TelegramGame?.getUser();
+        if (!tgUser) return;
+        
+        try {
+            await fetch(`${CONFIG.BACKEND_URL}/referral`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    newUserId: tgUser.id,
+                    referrerId: referrerId
+                })
+            });
+            
+            userData.referredBy = referrerId;
+            localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(userData));
+            
+            showToast('🎁 You joined via referral!');
+        } catch (e) {
+            console.error('[Referral] Process error:', e);
+        }
+    },
+    
+    getReferralLink() {
+        const tgUser = window.TelegramGame?.getUser();
+        const userId = tgUser?.id || 'guest';
+        return `https://t.me/${CONFIG.BOT_USERNAME}/${CONFIG.APP_SHORT_NAME}?startapp=ref_${userId}`;
+    },
+    
+    showInvite() {
+        if (window.TelegramGame?.isTelegram) {
+            // Use Telegram share
+            const link = this.getReferralLink();
+            const text = `🍉 Join me in Fruit Merge! Let's compete!\n\n${link}`;
+            
+            window.Telegram?.WebApp?.switchInlineQuery?.(text, ['users', 'groups', 'channels']);
         } else {
-            this.copyReferralLink();
+            // Copy link
+            const link = this.getReferralLink();
+            navigator.clipboard?.writeText(link);
+            showToast('Invite link copied!');
         }
     },
-
-    // Copy referral link
-    copyReferralLink() {
-        const link = window.TelegramGame?.getReferralLink() || window.location.href;
-        navigator.clipboard.writeText(link);
-        showToast('Link copied! 📋');
-    },
-
-    // Open referral modal
-    openReferralModal() {
-        this.loadReferralData();
-        document.getElementById('referral-modal')?.classList.add('show');
-    },
-
-    // Close referral modal
-    closeReferralModal() {
-        document.getElementById('referral-modal')?.classList.remove('show');
-    },
-
-    // Process incoming referral (called when user joins via referral link)
-    processIncomingReferral(referrerId) {
-        // Track that this user was referred
-        const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
-        userData.referredBy = referrerId;
-        localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(userData));
+    
+    updateUI() {
+        const invitedEl = document.getElementById('friends-invited');
+        const earnedEl = document.getElementById('stars-earned');
+        const linkInput = document.getElementById('referral-link-input');
         
-        // In production: notify backend to credit the referrer
-        // await fetch(`${CONFIG.BACKEND_URL}/referral/process`, {
-        //     method: 'POST',
-        //     body: JSON.stringify({ referrerId, newUserId: currentUserId })
-        // });
-    },
-
-    // Credit referrer when referee makes purchase (production: handle on backend)
-    creditReferrer(referrerId, purchaseAmount) {
-        const bonus = Math.floor(purchaseAmount * (REFERRAL_CONFIG.BONUS_PERCENTAGE / 100));
-        
-        // In production, this would be handled server-side
-        console.log(`[Referral] Crediting ${bonus} stars to referrer ${referrerId}`);
+        if (invitedEl) invitedEl.textContent = this.stats.invited;
+        if (earnedEl) earnedEl.textContent = this.stats.earned;
+        if (linkInput) linkInput.value = this.getReferralLink();
     }
 };
 

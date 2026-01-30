@@ -29,6 +29,7 @@
                 </div>
             </div>
             <div class="top-right">
+                <button class="top-btn" id="profile-btn" onclick="openModal('profile-modal')">👤</button>
                 <button class="top-btn" id="sound-btn">🔊</button>
             </div>
         </div>
@@ -191,10 +192,63 @@
             </div>
             <div class="leaderboard-tabs">
                 <button class="tab-btn active" data-tab="global">Global</button>
-                <button class="tab-btn" data-tab="weekly">Weekly</button>
+                <button class="tab-btn" data-tab="friends">Friends</button>
             </div>
             <div class="leaderboard-list" id="leaderboard-list"></div>
             <div class="your-rank">Your Rank: <span id="your-rank">#--</span></div>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div id="profile-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>👤 Profile</h2>
+                <button class="close-btn" onclick="closeModal('profile-modal')">&times;</button>
+            </div>
+            
+            <!-- Name Preview -->
+            <div class="profile-section">
+                <div class="profile-name-preview" id="name-preview">Player</div>
+                <button class="btn btn-secondary" id="change-name-btn" onclick="UsernameSystem.showChangeNameDialog()">
+                    Change Name (Free)
+                </button>
+            </div>
+            
+            <!-- Name Colors -->
+            <div class="section-title">🎨 Name Colors</div>
+            <div class="color-list" id="color-list"></div>
+            
+            <!-- Stats -->
+            <div class="section-title">📊 Your Stats</div>
+            <div class="profile-stats">
+                <div class="profile-stat">
+                    <div class="stat-value" id="profile-games">0</div>
+                    <div class="stat-label">Games</div>
+                </div>
+                <div class="profile-stat">
+                    <div class="stat-value" id="profile-best">0</div>
+                    <div class="stat-label">Best Score</div>
+                </div>
+                <div class="profile-stat">
+                    <div class="stat-value" id="profile-stars">0</div>
+                    <div class="stat-label">Stars</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Friends Modal -->
+    <div id="friends-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>👥 Friends</h2>
+                <button class="close-btn" onclick="closeModal('friends-modal')">&times;</button>
+            </div>
+            <div class="friends-list" id="friends-list"></div>
+            <button class="btn btn-primary btn-full" onclick="FriendsSystem.inviteFriend()">
+                📨 Invite Friends
+            </button>
         </div>
     </div>
 
@@ -230,6 +284,7 @@
     <script src="telegram.js"></script>
     <script src="daily.js"></script>
     <script src="skins.js"></script>
+    <script src="username.js"></script>
     <script src="shop.js"></script>
     <script src="leaderboard.js"></script>
     <script src="game.js"></script>

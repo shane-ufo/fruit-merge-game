@@ -23,6 +23,35 @@ function openModal(modalId) {
     if (modalId === 'wheel-modal') {
         setTimeout(() => LuckyWheel.drawWheel(), 100);
     }
+    
+    // Initialize profile UI when opening
+    if (modalId === 'profile-modal') {
+        updateProfileModal();
+    }
+    
+    // Load friends when opening friends modal
+    if (modalId === 'friends-modal') {
+        FriendsSystem?.loadFriends();
+    }
+    
+    // Refresh leaderboard when opening
+    if (modalId === 'leaderboard-modal') {
+        Leaderboard?.refresh();
+    }
+}
+
+function updateProfileModal() {
+    if (window.UsernameSystem) {
+        UsernameSystem.updateProfileUI();
+    }
+    
+    // Update stats
+    const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
+    const bestScore = localStorage.getItem(CONFIG.STORAGE_BEST_SCORE) || 0;
+    
+    document.getElementById('profile-games').textContent = userData.gamesPlayed || 0;
+    document.getElementById('profile-best').textContent = bestScore;
+    document.getElementById('profile-stars').textContent = userData.stars || 0;
 }
 
 function closeModal(modalId) {
@@ -138,6 +167,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.SkinSystem) {
         SkinSystem.init();
         console.log('[App] Skin system initialized');
+    }
+    
+    if (window.UsernameSystem) {
+        UsernameSystem.init();
+        console.log('[App] Username system initialized');
+    }
+    
+    if (window.FriendsSystem) {
+        FriendsSystem.init();
+        console.log('[App] Friends system initialized');
     }
     
     if (window.Shop) {

@@ -565,6 +565,11 @@ class GameScene extends Phaser.Scene {
             window.TelegramGame.hapticFeedback('medium');
             window.TelegramGame.onScoreUpdate(GameState.score);
         }
+        
+        // Track merge for daily tasks
+        if (window.trackMerge) {
+            window.trackMerge();
+        }
     }
 
     removeFruit(body) {

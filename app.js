@@ -1,81 +1,187 @@
 // ==========================================
-// Main App Initialization v2.0
-// Added: Sound settings, Mobile control hints
+// Main App v3.0 - All Features Integrated
 // ==========================================
 
-// Toast notification helper
 function showToast(message, duration = 2500) {
     const toast = document.getElementById('toast');
     if (!toast) return;
-    
     toast.textContent = message;
     toast.classList.add('show');
-    
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, duration);
+    setTimeout(() => toast.classList.remove('show'), duration);
 }
 
 window.showToast = showToast;
 
 // ==========================================
-// App Initialization
+// Modal System
+// ==========================================
+
+function openModal(modalId) {
+    document.getElementById(modalId)?.classList.add('show');
+    
+    // Initialize wheel canvas when opening
+    if (modalId === 'wheel-modal') {
+        setTimeout(() => LuckyWheel.drawWheel(), 100);
+    }
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId)?.classList.remove('show');
+}
+
+window.openModal = openModal;
+window.closeModal = closeModal;
+
+// Close modal on backdrop click
+document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal')) {
+        e.target.classList.remove('show');
+    }
+});
+
+// ==========================================
+// Sound Toggle
+// ==========================================
+
+function toggleSoundSetting() {
+    if (window.GameAPI) {
+        const enabled = GameAPI.toggleSound();
+        updateSoundUI(enabled);
+    }
+}
+
+function updateSoundUI(enabled) {
+    const btn = document.getElementById('sound-btn');
+    const toggleBtn = document.getElementById('sound-toggle-btn');
+    
+    if (btn) btn.textContent = enabled ? '🔊' : '🔇';
+    if (toggleBtn) {
+        toggleBtn.textContent = enabled ? 'ON' : 'OFF';
+        toggleBtn.classList.toggle('off', !enabled);
+    }
+}
+
+window.toggleSoundSetting = toggleSoundSetting;
+
+// ==========================================
+// Update UI
+// ==========================================
+
+function updateAllUI() {
+    const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
+    const powerups = JSON.parse(localStorage.getItem(CONFIG.STORAGE_POWERUPS) || '{}');
+    
+    // Stars
+    const stars = userData.stars || 0;
+    document.getElementById('header-stars').textContent = stars;
+    document.getElementById('user-stars').textContent = stars;
+    
+    // Powerups
+    document.getElementById('clear-count').textContent = powerups.clear_small || 0;
+    document.getElementById('shake-count').textContent = powerups.shake || 0;
+    document.getElementById('upgrade-count').textContent = powerups.upgrade || 0;
+    
+    // Enable/disable powerup buttons
+    const clearBtn = document.getElementById('powerup-clear');
+    const shakeBtn = document.getElementById('powerup-shake');
+    const upgradeBtn = document.getElementById('powerup-upgrade');
+    
+    if (clearBtn) clearBtn.disabled = !(powerups.clear_small > 0);
+    if (shakeBtn) shakeBtn.disabled = !(powerups.shake > 0);
+    if (upgradeBtn) upgradeBtn.disabled = !(powerups.upgrade > 0);
+    
+    // Badges
+    updateBadges();
+}
+
+function updateBadges() {
+    // Daily badge
+    const dailyBadge = document.getElementById('daily-badge');
+    if (dailyBadge) {
+        const canCheckIn = DailySystem.canCheckIn();
+        const tasks = DailySystem.getTodaysTasks();
+        const hasClaimable = tasks.tasks?.some(t => t.completed && !t.claimed);
+        dailyBadge.classList.toggle('show', canCheckIn || hasClaimable);
+    }
+    
+    // Wheel badge
+    const wheelBadge = document.getElementById('wheel-badge');
+    if (wheelBadge) {
+        const canSpin = LuckyWheel.canFreeSpin();
+        wheelBadge.classList.toggle('show', canSpin);
+    }
+}
+
+window.updateAllUI = updateAllUI;
+
+// ==========================================
+// Initialization
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('[App] Initializing v2.0...');
+    console.log('[App] Initializing v3.0...');
     
-    initializeSystems();
-    setupGlobalEventListeners();
-    setupSoundSettings();
+    // Initialize new user
+    initializeNewUser();
     
-    // Hide loading overlay
-    setTimeout(() => {
-        document.getElementById('loading-overlay')?.classList.add('hidden');
-    }, 500);
-    
-    // Hide control hint after 5 seconds
-    setTimeout(() => {
-        const hint = document.getElementById('control-hint');
-        if (hint) hint.style.display = 'none';
-    }, 5000);
-    
-    console.log('[App] Ready!');
-});
-
-function initializeSystems() {
-    // Initialize Telegram
-    if (window.TelegramGame) {
-        console.log('[App] Telegram integration active');
+    // Initialize all systems
+    if (window.DailySystem) {
+        DailySystem.init();
+        console.log('[App] Daily system initialized');
     }
     
-    // Initialize Shop
+    if (window.LuckyWheel) {
+        LuckyWheel.init();
+        console.log('[App] Lucky wheel initialized');
+    }
+    
+    if (window.SkinSystem) {
+        SkinSystem.init();
+        console.log('[App] Skin system initialized');
+    }
+    
     if (window.Shop) {
         Shop.init();
         console.log('[App] Shop initialized');
     }
     
-    // Initialize Leaderboard
     if (window.Leaderboard) {
         Leaderboard.init();
         console.log('[App] Leaderboard initialized');
     }
     
-    // Initialize Referral System
-    if (window.ReferralSystem) {
-        ReferralSystem.init();
-        console.log('[App] Referral system initialized');
-    }
-    
-    // Initialize Game
     if (window.GameAPI) {
         GameAPI.init();
         console.log('[App] Game initialized');
     }
     
-    // Initialize new user
-    initializeNewUser();
-}
+    // Setup event listeners
+    setupEventListeners();
+    
+    // Update UI
+    updateAllUI();
+    
+    // Sound button click
+    document.getElementById('sound-btn')?.addEventListener('click', () => {
+        openModal('sound-modal');
+    });
+    
+    // Update sound UI
+    if (window.GameAPI) {
+        updateSoundUI(GameAPI.isSoundEnabled());
+    }
+    
+    // Hide loading
+    setTimeout(() => {
+        document.getElementById('loading-overlay')?.classList.add('hidden');
+    }, 500);
+    
+    // Adjust game size for mobile
+    adjustGameSize();
+    window.addEventListener('resize', adjustGameSize);
+    
+    console.log('[App] Ready!');
+});
 
 function initializeNewUser() {
     const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
@@ -85,377 +191,172 @@ function initializeNewUser() {
         userData.stars = 100;
         userData.joinDate = Date.now();
         userData.soundEnabled = true;
-        userData.soundPack = 'default';
+        userData.ownedSkins = ['default'];
+        userData.currentSkin = 'default';
         localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(userData));
         
-        const powerups = JSON.parse(localStorage.getItem(CONFIG.STORAGE_POWERUPS) || '{}');
-        powerups.revive = (powerups.revive || 0) + 2;
-        powerups.clear_small = (powerups.clear_small || 0) + 3;
-        powerups.shake = (powerups.shake || 0) + 3;
+        const powerups = { revive: 2, clear_small: 3, shake: 3 };
         localStorage.setItem(CONFIG.STORAGE_POWERUPS, JSON.stringify(powerups));
         
-        console.log('[App] New user initialized with bonus items');
-        
-        setTimeout(() => {
-            showToast('Welcome! You got starter bonus! 🎁');
-        }, 1500);
+        setTimeout(() => showToast('Welcome! You got starter bonus! 🎁'), 1500);
     }
 }
 
-// ==========================================
-// Sound Settings
-// ==========================================
-
-function setupSoundSettings() {
-    // Sound button in header - toggles sound on/off
-    const soundBtn = document.getElementById('sound-btn');
-    if (soundBtn) {
-        // Update initial state
-        updateSoundButton();
-        
-        // Long press opens settings, short press toggles
-        let pressTimer;
-        let isLongPress = false;
-        
-        soundBtn.addEventListener('mousedown', () => {
-            isLongPress = false;
-            pressTimer = setTimeout(() => {
-                isLongPress = true;
-                openSoundSettings();
-            }, 500);
-        });
-        
-        soundBtn.addEventListener('mouseup', () => {
-            clearTimeout(pressTimer);
-            if (!isLongPress) {
-                toggleSound();
-            }
-        });
-        
-        soundBtn.addEventListener('mouseleave', () => {
-            clearTimeout(pressTimer);
-        });
-        
-        // Touch events for mobile
-        soundBtn.addEventListener('touchstart', (e) => {
-            isLongPress = false;
-            pressTimer = setTimeout(() => {
-                isLongPress = true;
-                openSoundSettings();
-            }, 500);
-        });
-        
-        soundBtn.addEventListener('touchend', (e) => {
-            clearTimeout(pressTimer);
-            if (!isLongPress) {
-                toggleSound();
-            }
-            e.preventDefault();
-        });
+function adjustGameSize() {
+    const gameArea = document.getElementById('game-area');
+    const container = document.getElementById('game-container');
+    
+    if (!gameArea || !container) return;
+    
+    const availableHeight = gameArea.clientHeight - 20;
+    const availableWidth = gameArea.clientWidth - 20;
+    
+    // Game aspect ratio
+    const gameRatio = CONFIG.GAME_WIDTH / CONFIG.GAME_HEIGHT;
+    
+    let newWidth, newHeight;
+    
+    if (availableWidth / availableHeight > gameRatio) {
+        // Height constrained
+        newHeight = availableHeight;
+        newWidth = newHeight * gameRatio;
+    } else {
+        // Width constrained
+        newWidth = availableWidth;
+        newHeight = newWidth / gameRatio;
     }
     
-    // Close sound modal
-    document.getElementById('close-sound')?.addEventListener('click', () => {
-        document.getElementById('sound-modal')?.classList.remove('show');
-    });
-    
-    // Sound toggle in settings
-    document.getElementById('sound-toggle-btn')?.addEventListener('click', () => {
-        toggleSound();
-        updateSoundSettingsUI();
-    });
-    
-    // Sound pack selection
-    document.getElementById('sound-pack-list')?.addEventListener('click', (e) => {
-        const packItem = e.target.closest('.sound-pack-item');
-        if (!packItem) return;
-        
-        const pack = packItem.dataset.pack;
-        selectSoundPack(pack);
-    });
-    
-    // Buy premium sounds
-    document.getElementById('buy-premium-sounds')?.addEventListener('click', () => {
-        buyPremiumSounds();
-    });
-    
-    // Close modal on backdrop click
-    document.getElementById('sound-modal')?.addEventListener('click', (e) => {
-        if (e.target.id === 'sound-modal') {
-            document.getElementById('sound-modal').classList.remove('show');
-        }
-    });
-}
-
-function toggleSound() {
-    if (window.GameAPI) {
-        const enabled = GameAPI.toggleSound();
-        updateSoundButton();
-        showToast(enabled ? 'Sound ON 🔊' : 'Sound OFF 🔇');
+    // Apply to canvas
+    const canvas = container.querySelector('canvas');
+    if (canvas) {
+        canvas.style.width = `${newWidth}px`;
+        canvas.style.height = `${newHeight}px`;
     }
 }
 
-function updateSoundButton() {
-    const soundBtn = document.getElementById('sound-btn');
-    if (soundBtn && window.GameAPI) {
-        soundBtn.textContent = GameAPI.isSoundEnabled() ? '🔊' : '🔇';
-    }
-}
-
-function openSoundSettings() {
-    updateSoundSettingsUI();
-    document.getElementById('sound-modal')?.classList.add('show');
-}
-
-function updateSoundSettingsUI() {
-    // Update toggle button
-    const toggleBtn = document.getElementById('sound-toggle-btn');
-    if (toggleBtn && window.GameAPI) {
-        const enabled = GameAPI.isSoundEnabled();
-        toggleBtn.textContent = enabled ? 'ON' : 'OFF';
-        toggleBtn.classList.toggle('off', !enabled);
-    }
-    
-    // Update pack list
-    const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
-    const currentPack = userData.soundPack || 'default';
-    const hasPremium = userData.premiumSounds === true;
-    
-    document.querySelectorAll('.sound-pack-item').forEach(item => {
-        const pack = item.dataset.pack;
-        const isActive = pack === currentPack;
-        const isLocked = pack !== 'default' && !hasPremium;
-        
-        item.classList.toggle('active', isActive);
-        item.classList.toggle('locked', isLocked);
-        
-        const status = item.querySelector('.pack-status');
-        if (status) {
-            if (isActive) {
-                status.textContent = '✓';
-            } else if (isLocked) {
-                status.textContent = '🔒 50⭐';
-            } else {
-                status.textContent = '';
-            }
-        }
-    });
-    
-    // Update premium promo visibility
-    const promo = document.getElementById('premium-promo');
-    if (promo) {
-        promo.style.display = hasPremium ? 'none' : 'block';
-    }
-}
-
-function selectSoundPack(pack) {
-    const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
-    const hasPremium = userData.premiumSounds === true;
-    
-    // Check if locked
-    if (pack !== 'default' && !hasPremium) {
-        // Offer to buy single pack or premium
-        showToast('Unlock premium sounds first! 🔒');
-        return;
-    }
-    
-    // Change pack
-    if (window.GameAPI) {
-        GameAPI.changeSoundPack(pack);
-        updateSoundSettingsUI();
-        showToast(`Sound pack: ${pack.charAt(0).toUpperCase() + pack.slice(1)} 🎵`);
-    }
-}
-
-async function buyPremiumSounds() {
-    const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
-    const stars = userData.stars || 0;
-    
-    if (stars < 100) {
-        showToast('Not enough stars! Need 100⭐');
-        return;
-    }
-    
-    const confirmed = await (window.TelegramGame?.showConfirm || confirm)(
-        'Buy Premium Sounds for 100⭐? Unlock all sound packs forever!'
-    );
-    
-    if (!confirmed) return;
-    
-    // Deduct stars
-    userData.stars -= 100;
-    userData.premiumSounds = true;
-    localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(userData));
-    
-    // Update shop stars display
-    if (window.Shop) {
-        Shop.userStars = userData.stars;
-        Shop.updateStarsDisplay();
-    }
-    
-    updateSoundSettingsUI();
-    
-    if (window.TelegramGame) {
-        window.TelegramGame.hapticFeedback('success');
-    }
-    
-    showToast('Premium Sounds unlocked! 🎉');
-}
-
-// ==========================================
-// Global Event Listeners
-// ==========================================
-
-function setupGlobalEventListeners() {
-    
-    // ---------- Game Over Modal Buttons ----------
-    
+function setupEventListeners() {
+    // Game Over buttons
     document.getElementById('restart-btn')?.addEventListener('click', () => {
-        if (window.GameAPI) {
-            GameAPI.restart();
-        }
+        closeModal('game-over-modal');
+        GameAPI?.restart();
     });
     
     document.getElementById('revive-btn')?.addEventListener('click', () => {
-        if (window.GameAPI) {
-            const success = GameAPI.revive();
-            if (!success) {
-                showToast('No revives left! Buy more in shop.');
-            }
+        if (GameAPI?.revive()) {
+            closeModal('game-over-modal');
+        } else {
+            showToast('No revives! Buy in shop.');
         }
     });
     
     document.getElementById('share-btn')?.addEventListener('click', () => {
-        const score = window.GameAPI?.getScore() || 0;
+        const score = GameAPI?.getScore() || 0;
         if (window.TelegramGame) {
             TelegramGame.shareScore(score);
         } else {
-            const text = `🍉 I scored ${score} points in Fruit Merge! Can you beat me?`;
-            if (navigator.share) {
-                navigator.share({ text });
-            } else {
-                navigator.clipboard.writeText(text);
-                showToast('Score copied!');
-            }
+            navigator.clipboard?.writeText(`🍉 I scored ${score} in Fruit Merge!`);
+            showToast('Score copied!');
         }
     });
     
-    // ---------- Power-up Buttons ----------
-    
+    // Powerups
     document.getElementById('powerup-clear')?.addEventListener('click', () => {
-        if (window.GameAPI) {
-            GameAPI.usePowerup('clear_small');
-        }
+        GameAPI?.usePowerup('clear_small');
+        updateAllUI();
     });
     
     document.getElementById('powerup-shake')?.addEventListener('click', () => {
-        if (window.GameAPI) {
-            GameAPI.usePowerup('shake');
-        }
+        GameAPI?.usePowerup('shake');
+        updateAllUI();
     });
     
     document.getElementById('powerup-upgrade')?.addEventListener('click', () => {
-        if (window.GameAPI) {
-            GameAPI.usePowerup('upgrade');
-        }
+        GameAPI?.usePowerup('upgrade');
+        updateAllUI();
     });
     
-    // ---------- Prevent Default Touch Behaviors ----------
+    // Leaderboard tabs
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            Leaderboard?.switchTab(btn.dataset.tab);
+        });
+    });
     
+    // Prevent touch issues
     document.body.addEventListener('touchmove', (e) => {
         if (e.target.closest('#game-container')) {
             e.preventDefault();
         }
     }, { passive: false });
     
-    // Prevent double-tap zoom
-    let lastTouchEnd = 0;
-    document.addEventListener('touchend', (e) => {
-        const now = Date.now();
-        if (now - lastTouchEnd <= 300) {
-            e.preventDefault();
-        }
-        lastTouchEnd = now;
-    }, false);
-    
-    // ---------- Keyboard Shortcuts ----------
-    
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'r' || e.key === 'R') {
-            if (window.GameAPI?.isGameOver()) {
-                GameAPI.restart();
-            }
-        }
-        
-        if (e.key === '1') GameAPI?.usePowerup('clear_small');
-        if (e.key === '2') GameAPI?.usePowerup('shake');
-        if (e.key === '3') GameAPI?.usePowerup('upgrade');
-        if (e.key === 'm' || e.key === 'M') toggleSound();
-    });
-    
-    // ---------- Close modals on Escape ----------
-    
+    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            document.querySelectorAll('.modal.show').forEach(modal => {
-                if (modal.id !== 'game-over-modal') {
-                    modal.classList.remove('show');
-                }
+            document.querySelectorAll('.modal.show').forEach(m => {
+                if (m.id !== 'game-over-modal') m.classList.remove('show');
             });
         }
     });
 }
 
 // ==========================================
-// Debug Helpers
+// Track Game Events for Tasks
+// ==========================================
+
+// Override game callbacks to track tasks
+const originalOnGameStart = window.TelegramGame?.onGameStart;
+const originalOnGameOver = window.TelegramGame?.onGameOver;
+
+if (window.TelegramGame) {
+    window.TelegramGame.onGameStart = () => {
+        originalOnGameStart?.();
+        DailySystem?.updateTaskProgress('game', 1);
+    };
+    
+    window.TelegramGame.onGameOver = (score, best) => {
+        originalOnGameOver?.(score, best);
+        DailySystem?.updateTaskProgress('score', score);
+        updateAllUI();
+    };
+}
+
+// Track merges (call from game.js)
+window.trackMerge = function() {
+    DailySystem?.updateTaskProgress('merge', 1);
+};
+
+// ==========================================
+// Debug
 // ==========================================
 
 window.DEBUG = {
-    addStars: (amount = 100) => {
-        if (window.Shop) {
-            Shop.addStars(amount);
-        }
+    addStars: (n = 100) => {
+        const ud = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
+        ud.stars = (ud.stars || 0) + n;
+        localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(ud));
+        updateAllUI();
+        showToast(`+${n} ⭐`);
     },
-    
     addPowerups: () => {
-        const powerups = JSON.parse(localStorage.getItem(CONFIG.STORAGE_POWERUPS) || '{}');
-        powerups.revive = (powerups.revive || 0) + 10;
-        powerups.clear_small = (powerups.clear_small || 0) + 10;
-        powerups.shake = (powerups.shake || 0) + 10;
-        powerups.upgrade = (powerups.upgrade || 0) + 10;
-        localStorage.setItem(CONFIG.STORAGE_POWERUPS, JSON.stringify(powerups));
-        gameScene?.updateUI();
-        showToast('Debug: +10 all powerups');
+        const p = JSON.parse(localStorage.getItem(CONFIG.STORAGE_POWERUPS) || '{}');
+        p.revive = (p.revive || 0) + 10;
+        p.clear_small = (p.clear_small || 0) + 10;
+        p.shake = (p.shake || 0) + 10;
+        p.upgrade = (p.upgrade || 0) + 10;
+        localStorage.setItem(CONFIG.STORAGE_POWERUPS, JSON.stringify(p));
+        updateAllUI();
+        showToast('+10 all powerups');
     },
-    
-    unlockPremiumSounds: () => {
-        const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
-        userData.premiumSounds = true;
-        localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(userData));
-        showToast('Debug: Premium sounds unlocked');
-    },
-    
-    resetAll: () => {
-        localStorage.clear();
+    resetDaily: () => {
+        localStorage.removeItem('dailyCheckIn');
+        localStorage.removeItem('dailyTasks');
+        localStorage.removeItem('luckyWheel');
         location.reload();
     },
-    
-    gameOver: () => {
-        if (gameScene) {
-            gameScene.triggerGameOver();
-        }
-    },
-    
-    showState: () => {
-        console.log('Score:', GameState.score);
-        console.log('Best:', GameState.bestScore);
-        console.log('Sound:', GameState.soundEnabled);
-        console.log('Sound Pack:', GameState.currentSoundPack);
-        console.log('Fruits:', gameScene?.fruits.length);
-        console.log('Powerups:', localStorage.getItem(CONFIG.STORAGE_POWERUPS));
-        console.log('UserData:', localStorage.getItem(CONFIG.STORAGE_USER_DATA));
+    reset: () => {
+        localStorage.clear();
+        location.reload();
     }
 };
-
-console.log('[App] Debug commands available via window.DEBUG');
-console.log('[App] Tip: Press M to toggle sound, Hold sound button for settings');

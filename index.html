@@ -2,198 +2,222 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1a1a2e">
     <title>Fruit Merge Game</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="game-wrapper">
-        <!-- Header with scores -->
-        <div id="header">
-            <div class="score-item">
-                <div class="score-label">SCORE</div>
-                <div class="score-value" id="current-score">0</div>
+    <div id="app">
+        <!-- Top Bar -->
+        <div id="top-bar">
+            <div class="top-left">
+                <div class="stars-display">
+                    <span id="header-stars">0</span> ⭐
+                </div>
             </div>
-            <div class="score-item">
-                <div class="score-label">BEST</div>
-                <div class="score-value" id="best-score">0</div>
+            <div class="top-center">
+                <div class="score-display">
+                    <span class="score-label">SCORE</span>
+                    <span class="score-value" id="current-score">0</span>
+                </div>
+                <div class="best-display">
+                    <span class="score-label">BEST</span>
+                    <span class="score-value" id="best-score">0</span>
+                </div>
             </div>
-            <button class="icon-btn" id="sound-btn" title="Toggle Sound">🔊</button>
-            <button class="icon-btn" id="shop-btn" title="Shop">🛒</button>
-            <button class="icon-btn" id="leaderboard-btn" title="Leaderboard">🏆</button>
-        </div>
-        
-        <!-- Game Canvas Container -->
-        <div id="game-container"></div>
-        
-        <!-- Next Fruit Preview -->
-        <div id="next-fruit">
-            <div id="next-fruit-label">NEXT</div>
-            <div id="next-fruit-display"></div>
+            <div class="top-right">
+                <button class="top-btn" id="sound-btn">🔊</button>
+            </div>
         </div>
 
-        <!-- Control Hint (for new players) -->
-        <div id="control-hint">
-            👆 Drag to move • Release to drop
+        <!-- Game Area -->
+        <div id="game-area">
+            <div id="game-container"></div>
+            
+            <!-- Next Fruit (floating) -->
+            <div id="next-fruit-floating">
+                <span>NEXT</span>
+                <div id="next-fruit-display"></div>
+            </div>
         </div>
 
-        <!-- Power-ups Bar -->
-        <div id="powerups-bar">
-            <button class="powerup-btn" id="powerup-clear" data-item="clear_small">
-                <span class="powerup-icon">🧹</span>
-                <span class="powerup-count" id="clear-count">0</span>
-            </button>
-            <button class="powerup-btn" id="powerup-shake" data-item="shake">
-                <span class="powerup-icon">📳</span>
-                <span class="powerup-count" id="shake-count">0</span>
-            </button>
-            <button class="powerup-btn" id="powerup-upgrade" data-item="upgrade">
-                <span class="powerup-icon">⬆️</span>
-                <span class="powerup-count" id="upgrade-count">0</span>
-            </button>
+        <!-- Bottom Menu -->
+        <div id="bottom-menu">
+            <!-- Power-ups -->
+            <div id="powerups-row">
+                <button class="powerup-btn" id="powerup-clear">
+                    <span class="pu-icon">🧹</span>
+                    <span class="pu-count" id="clear-count">0</span>
+                </button>
+                <button class="powerup-btn" id="powerup-shake">
+                    <span class="pu-icon">📳</span>
+                    <span class="pu-count" id="shake-count">0</span>
+                </button>
+                <button class="powerup-btn" id="powerup-upgrade">
+                    <span class="pu-icon">⬆️</span>
+                    <span class="pu-count" id="upgrade-count">0</span>
+                </button>
+            </div>
+            
+            <!-- Menu Buttons -->
+            <div id="menu-row">
+                <button class="menu-btn" onclick="openModal('daily-modal')">
+                    <span class="menu-icon">📅</span>
+                    <span class="menu-label">Daily</span>
+                    <span class="menu-badge" id="daily-badge"></span>
+                </button>
+                <button class="menu-btn" onclick="openModal('wheel-modal')">
+                    <span class="menu-icon">🎡</span>
+                    <span class="menu-label">Wheel</span>
+                    <span class="menu-badge" id="wheel-badge"></span>
+                </button>
+                <button class="menu-btn" onclick="openModal('shop-modal')">
+                    <span class="menu-icon">🛒</span>
+                    <span class="menu-label">Shop</span>
+                </button>
+                <button class="menu-btn" onclick="openModal('skins-modal')">
+                    <span class="menu-icon">🎨</span>
+                    <span class="menu-label">Skins</span>
+                </button>
+                <button class="menu-btn" onclick="openModal('leaderboard-modal')">
+                    <span class="menu-icon">🏆</span>
+                    <span class="menu-label">Rank</span>
+                </button>
+            </div>
         </div>
     </div>
 
+    <!-- ==================== MODALS ==================== -->
+
     <!-- Game Over Modal -->
     <div id="game-over-modal" class="modal">
-        <div class="modal-content game-over-content">
+        <div class="modal-content">
             <h2>🎮 Game Over!</h2>
             <div class="final-score" id="final-score">0</div>
-            <div class="best-score">Best: <span id="modal-best-score">0</span></div>
+            <div class="best-score-text">Best: <span id="modal-best-score">0</span></div>
             <div class="new-best" id="new-best-badge" style="display:none;">🎉 NEW BEST!</div>
             
             <div class="modal-buttons">
                 <button class="btn btn-primary" id="restart-btn">▶️ Play Again</button>
-                <button class="btn btn-revive" id="revive-btn">
-                    <span>💫 Continue</span>
-                    <span class="price">10 ⭐</span>
+                <button class="btn btn-gold" id="revive-btn">
+                    💫 Continue <span class="btn-price">1x</span>
                 </button>
-                <button class="btn btn-secondary" id="share-btn">📤 Share Score</button>
+                <button class="btn btn-secondary" id="share-btn">📤 Share</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daily Modal -->
+    <div id="daily-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>📅 Daily Rewards</h2>
+                <button class="close-btn" onclick="closeModal('daily-modal')">&times;</button>
+            </div>
+            
+            <!-- Check-in -->
+            <div class="section-title">🎁 Daily Check-in</div>
+            <div id="checkin-days" class="checkin-grid"></div>
+            <button class="btn btn-primary btn-full" id="checkin-btn" onclick="DailySystem.checkIn(); DailySystem.updateCheckInUI();">
+                📅 Check In
+            </button>
+            
+            <!-- Tasks -->
+            <div class="section-title" style="margin-top:20px;">📋 Daily Tasks</div>
+            <div id="tasks-list" class="tasks-list"></div>
+        </div>
+    </div>
+
+    <!-- Wheel Modal -->
+    <div id="wheel-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🎡 Lucky Wheel</h2>
+                <button class="close-btn" onclick="closeModal('wheel-modal')">&times;</button>
+            </div>
+            
+            <div class="wheel-container">
+                <div class="wheel-pointer">▼</div>
+                <div id="wheel-spinner">
+                    <canvas id="wheel-canvas" width="280" height="280"></canvas>
+                </div>
+            </div>
+            
+            <div class="wheel-buttons">
+                <button class="btn btn-primary" id="spin-free-btn" onclick="LuckyWheel.spin(false)">
+                    🎡 Free Spin (1)
+                </button>
+                <button class="btn btn-gold" id="spin-paid-btn" onclick="LuckyWheel.spin(true)">
+                    🎡 Spin (20⭐)
+                </button>
             </div>
         </div>
     </div>
 
     <!-- Shop Modal -->
     <div id="shop-modal" class="modal">
-        <div class="modal-content shop-content">
+        <div class="modal-content modal-large">
             <div class="modal-header">
                 <h2>🛒 Shop</h2>
-                <button class="close-btn" id="close-shop">&times;</button>
+                <button class="close-btn" onclick="closeModal('shop-modal')">&times;</button>
             </div>
-            <div class="coins-display">
-                <span>Your Stars:</span>
-                <span id="user-stars">0</span> ⭐
+            <div class="stars-bar">
+                Your Stars: <span id="user-stars">0</span> ⭐
             </div>
-            <div class="shop-items" id="shop-items-container">
-                <!-- Items populated by JS -->
-            </div>
+            <div class="shop-items" id="shop-items-container"></div>
         </div>
     </div>
 
-    <!-- Sound Settings Modal -->
-    <div id="sound-modal" class="modal">
-        <div class="modal-content sound-content">
+    <!-- Skins Modal -->
+    <div id="skins-modal" class="modal">
+        <div class="modal-content modal-large">
             <div class="modal-header">
-                <h2>🔊 Sound Settings</h2>
-                <button class="close-btn" id="close-sound">&times;</button>
+                <h2>🎨 Skins</h2>
+                <button class="close-btn" onclick="closeModal('skins-modal')">&times;</button>
             </div>
-            
-            <div class="sound-toggle-section">
-                <span>Sound Effects</span>
-                <button class="toggle-btn" id="sound-toggle-btn">ON</button>
-            </div>
-            
-            <div class="sound-packs-section">
-                <h3>🎵 Sound Packs</h3>
-                <div class="sound-pack-list" id="sound-pack-list">
-                    <div class="sound-pack-item active" data-pack="default">
-                        <span class="pack-icon">🎮</span>
-                        <span class="pack-name">Default</span>
-                        <span class="pack-status">✓</span>
-                    </div>
-                    <div class="sound-pack-item locked" data-pack="cute">
-                        <span class="pack-icon">🌸</span>
-                        <span class="pack-name">Cute</span>
-                        <span class="pack-status">🔒 50⭐</span>
-                    </div>
-                    <div class="sound-pack-item locked" data-pack="retro">
-                        <span class="pack-icon">👾</span>
-                        <span class="pack-name">Retro</span>
-                        <span class="pack-status">🔒 50⭐</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="premium-promo" id="premium-promo">
-                <p>🎁 Unlock ALL sound packs forever!</p>
-                <button class="btn btn-buy" id="buy-premium-sounds">
-                    Premium Sounds - 100⭐
-                </button>
-            </div>
+            <div id="skins-list" class="skins-list"></div>
         </div>
     </div>
 
     <!-- Leaderboard Modal -->
     <div id="leaderboard-modal" class="modal">
-        <div class="modal-content leaderboard-content">
+        <div class="modal-content modal-large">
             <div class="modal-header">
                 <h2>🏆 Leaderboard</h2>
-                <button class="close-btn" id="close-leaderboard">&times;</button>
+                <button class="close-btn" onclick="closeModal('leaderboard-modal')">&times;</button>
             </div>
             <div class="leaderboard-tabs">
                 <button class="tab-btn active" data-tab="global">Global</button>
-                <button class="tab-btn" data-tab="friends">Friends</button>
                 <button class="tab-btn" data-tab="weekly">Weekly</button>
             </div>
-            <div class="leaderboard-list" id="leaderboard-list">
-                <!-- Populated by JS -->
-            </div>
-            <div class="your-rank">
-                Your Rank: <span id="your-rank">#--</span>
-            </div>
+            <div class="leaderboard-list" id="leaderboard-list"></div>
+            <div class="your-rank">Your Rank: <span id="your-rank">#--</span></div>
         </div>
     </div>
 
-    <!-- Referral Modal -->
-    <div id="referral-modal" class="modal">
-        <div class="modal-content referral-content">
+    <!-- Sound Settings Modal -->
+    <div id="sound-modal" class="modal">
+        <div class="modal-content">
             <div class="modal-header">
-                <h2>🎁 Invite Friends</h2>
-                <button class="close-btn" id="close-referral">&times;</button>
+                <h2>🔊 Sound</h2>
+                <button class="close-btn" onclick="closeModal('sound-modal')">&times;</button>
             </div>
-            <p>Invite friends and earn rewards!</p>
-            <div class="referral-rewards">
-                <div class="reward-item">
-                    <span>Per friend joined:</span>
-                    <span>+50 ⭐</span>
-                </div>
-                <div class="reward-item">
-                    <span>Friend's first purchase:</span>
-                    <span>+10% bonus</span>
-                </div>
+            <div class="sound-toggle">
+                <span>Sound Effects</span>
+                <button class="toggle-btn" id="sound-toggle-btn" onclick="toggleSoundSetting()">ON</button>
             </div>
-            <div class="referral-stats">
-                <div class="stat">
-                    <div class="stat-value" id="friends-invited">0</div>
-                    <div class="stat-label">Invited</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="stars-earned">0</div>
-                    <div class="stat-label">Stars Earned</div>
-                </div>
-            </div>
-            <button class="btn btn-primary" id="invite-btn">📨 Send Invite Link</button>
-            <div class="referral-link">
-                <input type="text" id="referral-link-input" readonly>
-                <button class="copy-btn" id="copy-referral">📋</button>
-            </div>
+            <div class="section-title">🎵 Sound Packs</div>
+            <div id="sound-pack-list" class="sound-pack-list"></div>
         </div>
     </div>
 
-    <!-- Toast Notification -->
+    <!-- Toast -->
     <div id="toast" class="toast"></div>
 
-    <!-- Loading Overlay -->
+    <!-- Loading -->
     <div id="loading-overlay" class="loading-overlay">
         <div class="spinner"></div>
         <div>Loading...</div>
@@ -204,6 +228,8 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="config.js"></script>
     <script src="telegram.js"></script>
+    <script src="daily.js"></script>
+    <script src="skins.js"></script>
     <script src="shop.js"></script>
     <script src="leaderboard.js"></script>
     <script src="game.js"></script>

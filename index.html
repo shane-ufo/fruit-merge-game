@@ -1,14 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=cover">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' * 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#1a1a2e">
     <title>Fruit Merge Game</title>
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <div id="app">
         <!-- Top Bar -->
@@ -37,7 +42,7 @@
         <!-- Game Area -->
         <div id="game-area">
             <div id="game-container"></div>
-            
+
             <!-- Next Fruit (floating) -->
             <div id="next-fruit-floating">
                 <span>NEXT</span>
@@ -62,7 +67,7 @@
                     <span class="pu-count" id="upgrade-count">0</span>
                 </button>
             </div>
-            
+
             <!-- Menu Buttons -->
             <div id="menu-row">
                 <button class="menu-btn" onclick="openModal('daily-modal')">
@@ -100,7 +105,7 @@
             <div class="final-score" id="final-score">0</div>
             <div class="best-score-text">Best: <span id="modal-best-score">0</span></div>
             <div class="new-best" id="new-best-badge" style="display:none;">🎉 NEW BEST!</div>
-            
+
             <div class="modal-buttons">
                 <button class="btn btn-primary" id="restart-btn">▶️ Play Again</button>
                 <button class="btn btn-gold" id="revive-btn">
@@ -118,14 +123,15 @@
                 <h2>📅 Daily Rewards</h2>
                 <button class="close-btn" onclick="closeModal('daily-modal')">&times;</button>
             </div>
-            
+
             <!-- Check-in -->
             <div class="section-title">🎁 Daily Check-in</div>
             <div id="checkin-days" class="checkin-grid"></div>
-            <button class="btn btn-primary btn-full" id="checkin-btn" onclick="DailySystem.checkIn(); DailySystem.updateCheckInUI();">
+            <button class="btn btn-primary btn-full" id="checkin-btn"
+                onclick="DailySystem.checkIn(); DailySystem.updateCheckInUI();">
                 📅 Check In
             </button>
-            
+
             <!-- Tasks -->
             <div class="section-title" style="margin-top:20px;">📋 Daily Tasks</div>
             <div id="tasks-list" class="tasks-list"></div>
@@ -139,14 +145,14 @@
                 <h2>🎡 Lucky Wheel</h2>
                 <button class="close-btn" onclick="closeModal('wheel-modal')">&times;</button>
             </div>
-            
+
             <div class="wheel-container">
                 <div class="wheel-pointer">▼</div>
                 <div id="wheel-spinner">
                     <canvas id="wheel-canvas" width="280" height="280"></canvas>
                 </div>
             </div>
-            
+
             <div class="wheel-buttons">
                 <button class="btn btn-primary" id="spin-free-btn" onclick="LuckyWheel.spin(false)">
                     🎡 Free Spin (1)
@@ -206,7 +212,7 @@
                 <h2>👤 Profile</h2>
                 <button class="close-btn" onclick="closeModal('profile-modal')">&times;</button>
             </div>
-            
+
             <!-- Name Preview -->
             <div class="profile-section">
                 <div class="profile-name-preview" id="name-preview">Player</div>
@@ -214,11 +220,11 @@
                     Change Name (Free)
                 </button>
             </div>
-            
+
             <!-- Name Colors -->
             <div class="section-title">🎨 Name Colors</div>
             <div class="color-list" id="color-list"></div>
-            
+
             <!-- Stats -->
             <div class="section-title">📊 Your Stats</div>
             <div class="profile-stats">
@@ -291,4 +297,5 @@
     <script src="game.js"></script>
     <script src="app.js"></script>
 </body>
+
 </html>

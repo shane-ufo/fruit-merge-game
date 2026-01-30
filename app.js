@@ -18,22 +18,22 @@ window.showToast = showToast;
 
 function openModal(modalId) {
     document.getElementById(modalId)?.classList.add('show');
-    
+
     // Initialize wheel canvas when opening
     if (modalId === 'wheel-modal') {
         setTimeout(() => LuckyWheel.drawWheel(), 100);
     }
-    
+
     // Initialize profile UI when opening
     if (modalId === 'profile-modal') {
         updateProfileModal();
     }
-    
+
     // Load friends when opening friends modal
     if (modalId === 'friends-modal') {
         FriendsSystem?.loadFriends();
     }
-    
+
     // Refresh leaderboard when opening
     if (modalId === 'leaderboard-modal') {
         Leaderboard?.refresh();
@@ -44,11 +44,11 @@ function updateProfileModal() {
     if (window.UsernameSystem) {
         UsernameSystem.updateProfileUI();
     }
-    
+
     // Update stats
     const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
     const bestScore = localStorage.getItem(CONFIG.STORAGE_BEST_SCORE) || 0;
-    
+
     document.getElementById('profile-games').textContent = userData.gamesPlayed || 0;
     document.getElementById('profile-best').textContent = bestScore;
     document.getElementById('profile-stars').textContent = userData.stars || 0;
@@ -82,7 +82,7 @@ function toggleSoundSetting() {
 function updateSoundUI(enabled) {
     const btn = document.getElementById('sound-btn');
     const toggleBtn = document.getElementById('sound-toggle-btn');
-    
+
     if (btn) btn.textContent = enabled ? '🔊' : '🔇';
     if (toggleBtn) {
         toggleBtn.textContent = enabled ? 'ON' : 'OFF';
@@ -99,26 +99,26 @@ window.toggleSoundSetting = toggleSoundSetting;
 function updateAllUI() {
     const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
     const powerups = JSON.parse(localStorage.getItem(CONFIG.STORAGE_POWERUPS) || '{}');
-    
+
     // Stars
     const stars = userData.stars || 0;
     document.getElementById('header-stars').textContent = stars;
     document.getElementById('user-stars').textContent = stars;
-    
+
     // Powerups
     document.getElementById('clear-count').textContent = powerups.clear_small || 0;
     document.getElementById('shake-count').textContent = powerups.shake || 0;
     document.getElementById('upgrade-count').textContent = powerups.upgrade || 0;
-    
+
     // Enable/disable powerup buttons
     const clearBtn = document.getElementById('powerup-clear');
     const shakeBtn = document.getElementById('powerup-shake');
     const upgradeBtn = document.getElementById('powerup-upgrade');
-    
+
     if (clearBtn) clearBtn.disabled = !(powerups.clear_small > 0);
     if (shakeBtn) shakeBtn.disabled = !(powerups.shake > 0);
     if (upgradeBtn) upgradeBtn.disabled = !(powerups.upgrade > 0);
-    
+
     // Badges
     updateBadges();
 }
@@ -132,7 +132,7 @@ function updateBadges() {
         const hasClaimable = tasks.tasks?.some(t => t.completed && !t.claimed);
         dailyBadge.classList.toggle('show', canCheckIn || hasClaimable);
     }
-    
+
     // Wheel badge
     const wheelBadge = document.getElementById('wheel-badge');
     if (wheelBadge) {
@@ -149,88 +149,99 @@ window.updateAllUI = updateAllUI;
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('[App] Initializing v3.0...');
-    
+
     // Initialize new user
     initializeNewUser();
-    
+
     // Initialize all systems
     if (window.DailySystem) {
         DailySystem.init();
         console.log('[App] Daily system initialized');
     }
-    
+
     if (window.LuckyWheel) {
         LuckyWheel.init();
         console.log('[App] Lucky wheel initialized');
     }
-    
+
     if (window.SkinSystem) {
         SkinSystem.init();
         console.log('[App] Skin system initialized');
     }
-    
+
     if (window.UsernameSystem) {
         UsernameSystem.init();
         console.log('[App] Username system initialized');
     }
-    
+
     if (window.FriendsSystem) {
         FriendsSystem.init();
         console.log('[App] Friends system initialized');
     }
-    
+
     if (window.VVIPSystem) {
         VVIPSystem.injectStyles();
         VVIPSystem.init();
         console.log('[App] VVIP system initialized');
     }
-    
+
     if (window.Shop) {
         Shop.init();
         console.log('[App] Shop initialized');
     }
-    
+
     if (window.Leaderboard) {
         Leaderboard.init();
         console.log('[App] Leaderboard initialized');
     }
-    
+
     if (window.GameAPI) {
         GameAPI.init();
         console.log('[App] Game initialized');
     }
-    
+
     // Setup event listeners
     setupEventListeners();
-    
+
     // Update UI
     updateAllUI();
-    
+
     // Sound button click
     document.getElementById('sound-btn')?.addEventListener('click', () => {
         openModal('sound-modal');
     });
-    
+
     // Update sound UI
     if (window.GameAPI) {
         updateSoundUI(GameAPI.isSoundEnabled());
     }
-    
+
     // Hide loading
     setTimeout(() => {
         document.getElementById('loading-overlay')?.classList.add('hidden');
     }, 500);
-    
+
     // Adjust game size for mobile
     adjustGameSize();
     window.addEventListener('resize', adjustGameSize);
-    
+
     console.log('[App] Ready!');
+
+    if (window.GameAPI) {
+        // 给浏览器 100ms 渲染 100dvh 的时间
+        setTimeout(() => {
+            adjustGameSize(); // 初始化前先计算一次
+            GameAPI.init();   // 启动 Phaser
+
+            // 启动后再次强制同步一次画布大小
+            setTimeout(adjustGameSize, 200);
+        }, 100);
+    }
 });
 
 function initializeNewUser() {
     const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
-    
+
     if (!userData.initialized) {
         userData.initialized = true;
         userData.stars = 100;
@@ -239,10 +250,10 @@ function initializeNewUser() {
         userData.ownedSkins = ['default'];
         userData.currentSkin = 'default';
         localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(userData));
-        
+
         const powerups = { revive: 2, clear_small: 3, shake: 3 };
         localStorage.setItem(CONFIG.STORAGE_POWERUPS, JSON.stringify(powerups));
-        
+
         setTimeout(() => showToast('Welcome! You got starter bonus! 🎁'), 1500);
     }
 }
@@ -250,32 +261,32 @@ function initializeNewUser() {
 function adjustGameSize() {
     const gameArea = document.getElementById('game-area');
     const container = document.getElementById('game-container');
-    
+
     if (!gameArea || !container) return;
-    
-    const availableHeight = gameArea.clientHeight - 20;
-    const availableWidth = gameArea.clientWidth - 20;
-    
-    // Game aspect ratio
+
+    // 关键：如果 gameArea 高度还没出来，强制等待或使用默认值
+    const availableHeight = gameArea.clientHeight || window.innerHeight * 0.7;
+    const availableWidth = gameArea.clientWidth || window.innerWidth;
+
     const gameRatio = CONFIG.GAME_WIDTH / CONFIG.GAME_HEIGHT;
-    
+
     let newWidth, newHeight;
-    
     if (availableWidth / availableHeight > gameRatio) {
-        // Height constrained
         newHeight = availableHeight;
         newWidth = newHeight * gameRatio;
     } else {
-        // Width constrained
         newWidth = availableWidth;
         newHeight = newWidth / gameRatio;
     }
-    
-    // Apply to canvas
+
+    // 强制设置 container 的宽高，而不仅仅是内部的 canvas
+    container.style.width = `${newWidth}px`;
+    container.style.height = `${newHeight}px`;
+
     const canvas = container.querySelector('canvas');
     if (canvas) {
-        canvas.style.width = `${newWidth}px`;
-        canvas.style.height = `${newHeight}px`;
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
     }
 }
 
@@ -285,7 +296,7 @@ function setupEventListeners() {
         closeModal('game-over-modal');
         GameAPI?.restart();
     });
-    
+
     document.getElementById('revive-btn')?.addEventListener('click', () => {
         if (GameAPI?.revive()) {
             closeModal('game-over-modal');
@@ -293,7 +304,7 @@ function setupEventListeners() {
             showToast('No revives! Buy in shop.');
         }
     });
-    
+
     document.getElementById('share-btn')?.addEventListener('click', () => {
         const score = GameAPI?.getScore() || 0;
         if (window.TelegramGame) {
@@ -303,23 +314,23 @@ function setupEventListeners() {
             showToast('Score copied!');
         }
     });
-    
+
     // Powerups
     document.getElementById('powerup-clear')?.addEventListener('click', () => {
         GameAPI?.usePowerup('clear_small');
         updateAllUI();
     });
-    
+
     document.getElementById('powerup-shake')?.addEventListener('click', () => {
         GameAPI?.usePowerup('shake');
         updateAllUI();
     });
-    
+
     document.getElementById('powerup-upgrade')?.addEventListener('click', () => {
         GameAPI?.usePowerup('upgrade');
         updateAllUI();
     });
-    
+
     // Leaderboard tabs
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -328,14 +339,14 @@ function setupEventListeners() {
             Leaderboard?.switchTab(btn.dataset.tab);
         });
     });
-    
+
     // Prevent touch issues
     document.body.addEventListener('touchmove', (e) => {
         if (e.target.closest('#game-container')) {
             e.preventDefault();
         }
     }, { passive: false });
-    
+
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
@@ -359,7 +370,7 @@ if (window.TelegramGame) {
         originalOnGameStart?.();
         DailySystem?.updateTaskProgress('game', 1);
     };
-    
+
     window.TelegramGame.onGameOver = (score, best) => {
         originalOnGameOver?.(score, best);
         DailySystem?.updateTaskProgress('score', score);
@@ -368,7 +379,7 @@ if (window.TelegramGame) {
 }
 
 // Track merges (call from game.js)
-window.trackMerge = function() {
+window.trackMerge = function () {
     DailySystem?.updateTaskProgress('merge', 1);
 };
 

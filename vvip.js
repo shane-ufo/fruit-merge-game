@@ -12,7 +12,7 @@
     // 方法 1: 用 Telegram User ID（推荐）
     // 去 Telegram 找 @userinfobot 获取你的 ID
     const OWNER_IDS = [
-        '1579441495',  // ← 换成你的真实 Telegram User ID!
+        '',  // ← 换成你的真实 Telegram User ID!
     ];
 
     // 方法 2: 用密码激活（更简单）

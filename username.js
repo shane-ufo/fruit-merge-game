@@ -41,7 +41,7 @@ const UsernameSystem = {
             if (tgUser) {
                 // Use Telegram username or first name
                 userData.displayName = tgUser.username || tgUser.first_name || 'Player';
-                userData.telegramId visually = tgUser.id;
+                userData.telegramId = tgUser.id;
                 userData.telegramUsername = tgUser.username || null;
             } else {
                 userData.displayName = 'Player_' + Date.now().toString().slice(-4);

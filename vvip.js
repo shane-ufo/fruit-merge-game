@@ -5,192 +5,113 @@
 (function () {
     'use strict';
 
-    // ⚠️⚠️⚠️ PUT YOUR TELEGRAM USER ID HERE! ⚠️⚠️⚠️
-    // 
-    // How to find your ID:
-    // 1. Open Telegram
-    // 2. Search for @userinfobot
-    // 3. Send any message
-    // 4. It will reply with your ID (e.g., 123456789)
-    //
+    // ==========================================
+    // ⚠️ CONFIGURATION - 修改这里！
+    // ==========================================
+
+    // 方法 1: 用 Telegram User ID（推荐）
+    // 去 Telegram 找 @userinfobot 获取你的 ID
     const OWNER_IDS = [
-        '1579441495',  // <-- REPLACE WITH YOUR REAL TELEGRAM USER ID!
-        // Add more admin IDs here if needed
+        '1579441495',  // ← 换成你的真实 Telegram User ID!
     ];
 
+    // 方法 2: 用密码激活（更简单）
+    // 在 Console 输入: VVIP.activate('你的密码')
+    const SECRET_PASSWORD = 'owner888';  // ← 你可以改成别的密码
+
     // ==========================================
-    // Anti-Cheat System
+    // Owner Detection
+    // ==========================================
+
+    function isOwner() {
+        // Check 1: localStorage flag (activated by password)
+        if (localStorage.getItem('_vvip_owner') === 'true') {
+            return true;
+        }
+
+        // Check 2: Telegram User ID
+        const tgUser = window.TelegramGame?.getUser?.();
+        if (tgUser && OWNER_IDS.includes(String(tgUser.id))) {
+            return true;
+        }
+
+        return false;
+    }
+
+    // ==========================================
+    // Anti-Cheat (只对普通玩家生效)
     // ==========================================
 
     const AntiCheat = {
+        enabled: false,
 
         init() {
-            this.protectConsole();
-            this.detectDevTools();
-            this.protectGlobals();
-            this.startValidation();
-            this.blockCommonCheats();
+            // 延迟启动，先判断是否是 owner
+            setTimeout(() => {
+                if (isOwner()) {
+                    console.log('%c👑 OWNER - Anti-cheat DISABLED', 'color:gold;font-size:14px');
+                    return;
+                }
+
+                this.enabled = true;
+                this.protect();
+            }, 3000); // 3秒后启动，给足够时间判断
         },
 
-        isAdmin() {
-            const tgUser = window.TelegramGame?.getUser?.();
-            if (!tgUser) return false;
-            return OWNER_IDS.includes(String(tgUser.id));
-        },
+        protect() {
+            if (!this.enabled) return;
 
-        // Disable console for non-admins
-        protectConsole() {
-            if (this.isAdmin()) return;
-
+            // 1. 隐藏 console
             const noop = () => { };
             ['log', 'debug', 'info', 'warn', 'error', 'table', 'clear', 'dir', 'trace'].forEach(m => {
-                window.console[m] = noop;
+                try { console[m] = noop; } catch (e) { }
             });
 
-            try { Object.freeze(console); } catch (e) { }
-        },
-
-        // Detect DevTools
-        detectDevTools() {
-            if (this.isAdmin()) return;
-
-            // Method 1: Size detection
-            setInterval(() => {
-                if (window.outerWidth - window.innerWidth > 160 ||
-                    window.outerHeight - window.innerHeight > 160) {
-                    this.onCheatDetected('DevTools');
-                }
-            }, 2000);
-
-            // Method 2: debugger timing
-            setInterval(() => {
-                const t1 = performance.now();
-                debugger;
-                if (performance.now() - t1 > 100) {
-                    this.onCheatDetected('Debugger');
-                }
-            }, 3000);
-        },
-
-        // Remove cheat functions from window
-        protectGlobals() {
-            if (this.isAdmin()) return;
-
-            // Delete any cheat objects
+            // 2. 删除作弊对象
             setTimeout(() => {
                 delete window.CHEAT;
-                delete window.AdminCheats;
+                delete window.VVIP;
                 delete window.DEBUG;
-            }, 2000);
-
-            // Prevent localStorage tampering detection
-            const originalSetItem = localStorage.setItem.bind(localStorage);
-            localStorage.setItem = (key, value) => {
-                // Check for suspicious star values
-                if (key === CONFIG?.STORAGE_USER_DATA) {
-                    try {
-                        const data = JSON.parse(value);
-                        if (data.stars > 100000 && !this.isAdmin()) {
-                            this.onCheatDetected('Stars manipulation');
-                            return;
-                        }
-                    } catch (e) { }
-                }
-                originalSetItem(key, value);
-            };
-        },
-
-        // Validate data periodically
-        startValidation() {
-            if (this.isAdmin()) return;
-
-            let lastStars = 0;
-            let lastTime = Date.now();
-
-            setInterval(() => {
-                const ud = JSON.parse(localStorage.getItem(CONFIG?.STORAGE_USER_DATA || '') || '{}');
-                const now = Date.now();
-                const timeDiff = (now - lastTime) / 1000;
-                const starsDiff = (ud.stars || 0) - lastStars;
-
-                // Max 100 stars per second is suspicious
-                if (starsDiff > timeDiff * 100 && starsDiff > 500) {
-                    this.onCheatDetected('Abnormal stars');
-                }
-
-                lastStars = ud.stars || 0;
-                lastTime = now;
-            }, 5000);
-        },
-
-        // Block common cheat attempts
-        blockCommonCheats() {
-            if (this.isAdmin()) return;
-
-            // Block eval
-            window.eval = () => { this.onCheatDetected('eval'); };
-
-            // Block Function constructor
-            try {
-                window.Function = () => { this.onCheatDetected('Function'); };
-            } catch (e) { }
-        },
-
-        onCheatDetected(reason) {
-            // Show warning
-            if (window.showToast) {
-                showToast('⚠️ Cheat detected! Data may be reset.');
-            }
-
-            // Report to server
-            const tgUser = window.TelegramGame?.getUser?.();
-            fetch(`${CONFIG?.BACKEND_URL || ''}/report-cheat`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    odairy: tgUser?.id,
-                    reason: reason,
-                    time: Date.now()
-                })
-            }).catch(() => { });
-
-            // Optional: Reset data
-            // localStorage.clear();
-            // location.reload();
+            }, 4000);
         }
     };
 
     // ==========================================
-    // VVIP System (Only for OWNER_IDS)
+    // VVIP System
     // ==========================================
 
     const VVIPSystem = {
 
-        isVVIP(userId) {
-            return OWNER_IDS.includes(String(userId));
+        // 用密码激活 VVIP
+        activate(password) {
+            if (password === SECRET_PASSWORD) {
+                localStorage.setItem('_vvip_owner', 'true');
+                this.grantPrivileges();
+                console.log('%c👑 VVIP ACTIVATED!', 'color:gold;font-size:20px');
+                if (window.showToast) showToast('👑 VVIP Mode Activated!');
+                return true;
+            } else {
+                console.log('Wrong password');
+                return false;
+            }
         },
 
-        init() {
-            setTimeout(() => {
-                const tgUser = window.TelegramGame?.getUser?.();
-
-                if (tgUser && this.isVVIP(tgUser.id)) {
-                    console.log('%c👑 VVIP OWNER MODE!', 'color:gold;font-size:20px;font-weight:bold');
-                    this.activateVVIP();
-                    this.exposeCheatCommands();
-                } else {
-                    // Normal user: enable anti-cheat
-                    AntiCheat.init();
-                }
-            }, 1500);
+        // 取消 VVIP
+        deactivate() {
+            localStorage.removeItem('_vvip_owner');
+            console.log('VVIP deactivated. Refresh to apply.');
         },
 
-        activateVVIP() {
-            const ud = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
+        // 授予特权
+        grantPrivileges() {
+            const storageKey = (typeof CONFIG !== 'undefined' && CONFIG.STORAGE_USER_DATA) || 'fruitMerge_userData';
+            const powerupKey = (typeof CONFIG !== 'undefined' && CONFIG.STORAGE_POWERUPS) || 'fruitMerge_powerups';
+
+            const ud = JSON.parse(localStorage.getItem(storageKey) || '{}');
 
             ud.isVVIP = true;
             ud.isVip = true;
-            ud.stars = Math.max(ud.stars || 0, 999999);
+            ud.stars = 999999;
             ud.ownedColors = ['default', 'gold', 'rainbow', 'pink', 'blue', 'green', 'purple', 'vvip_rainbow'];
             ud.nameColor = 'vvip_rainbow';
             ud.ownedSkins = ['default', 'animals', 'space', 'food', 'sports', 'hearts', 'halloween', 'christmas'];
@@ -198,58 +119,101 @@
             ud.doubleScore = true;
             ud.freeNameChanges = true;
 
-            localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(ud));
+            localStorage.setItem(storageKey, JSON.stringify(ud));
 
             const p = { revive: 999, clear_small: 999, shake: 999, upgrade: 999 };
-            localStorage.setItem(CONFIG.STORAGE_POWERUPS, JSON.stringify(p));
+            localStorage.setItem(powerupKey, JSON.stringify(p));
 
-            if (window.Shop) { Shop.userStars = ud.stars; Shop.updateStarsDisplay(); }
+            // Update UI
+            if (window.Shop) {
+                Shop.userStars = ud.stars;
+                if (Shop.updateStarsDisplay) Shop.updateStarsDisplay();
+            }
             if (window.updateAllUI) updateAllUI();
 
+            // Inject styles
             this.injectStyles();
 
-            setTimeout(() => showToast?.('👑 VVIP Owner Mode!'), 2000);
+            // Expose cheat commands
+            this.exposeCommands();
         },
 
-        exposeCheatCommands() {
+        // 自动初始化
+        init() {
+            setTimeout(() => {
+                if (isOwner()) {
+                    console.log('%c👑 VVIP OWNER MODE', 'color:gold;font-size:16px;font-weight:bold');
+                    this.grantPrivileges();
+                    setTimeout(() => {
+                        if (window.showToast) showToast('👑 VVIP Owner Mode!');
+                    }, 1500);
+                } else {
+                    // 普通用户：启动防作弊
+                    AntiCheat.init();
+                }
+            }, 2000);
+        },
+
+        // 作弊命令
+        exposeCommands() {
+            const storageKey = (typeof CONFIG !== 'undefined' && CONFIG.STORAGE_USER_DATA) || 'fruitMerge_userData';
+            const powerupKey = (typeof CONFIG !== 'undefined' && CONFIG.STORAGE_POWERUPS) || 'fruitMerge_powerups';
+            const scoreKey = (typeof CONFIG !== 'undefined' && CONFIG.STORAGE_BEST_SCORE) || 'fruitMerge_bestScore';
+
             window.CHEAT = {
-                addStars: (n = 10000) => {
-                    const ud = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
+                stars: (n = 10000) => {
+                    const ud = JSON.parse(localStorage.getItem(storageKey) || '{}');
                     ud.stars = (ud.stars || 0) + n;
-                    localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(ud));
-                    Shop && (Shop.userStars = ud.stars, Shop.updateStarsDisplay());
-                    updateAllUI?.();
-                    showToast?.(`+${n} ⭐`);
+                    localStorage.setItem(storageKey, JSON.stringify(ud));
+                    if (window.Shop) { Shop.userStars = ud.stars; if (Shop.updateStarsDisplay) Shop.updateStarsDisplay(); }
+                    if (window.updateAllUI) updateAllUI();
+                    if (window.showToast) showToast('+' + n + ' ⭐');
                 },
-                setStars: (n) => {
-                    const ud = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
-                    ud.stars = n;
-                    localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(ud));
-                    Shop && (Shop.userStars = ud.stars, Shop.updateStarsDisplay());
-                    updateAllUI?.();
-                    showToast?.(`Stars = ${n}`);
-                },
-                addPowerups: (n = 99) => {
-                    const p = JSON.parse(localStorage.getItem(CONFIG.STORAGE_POWERUPS) || '{}');
+
+                powerups: (n = 99) => {
+                    const p = JSON.parse(localStorage.getItem(powerupKey) || '{}');
                     ['revive', 'clear_small', 'shake', 'upgrade'].forEach(k => p[k] = (p[k] || 0) + n);
-                    localStorage.setItem(CONFIG.STORAGE_POWERUPS, JSON.stringify(p));
-                    updateAllUI?.();
-                    showToast?.(`+${n} powerups`);
+                    localStorage.setItem(powerupKey, JSON.stringify(p));
+                    if (window.updateAllUI) updateAllUI();
+                    if (window.showToast) showToast('+' + n + ' powerups');
                 },
-                unlockAll: () => {
-                    const ud = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
+
+                score: (n) => {
+                    if (window.GameState) GameState.score = n;
+                    if (window.gameScene && gameScene.updateUI) gameScene.updateUI();
+                    if (window.showToast) showToast('Score = ' + n);
+                },
+
+                leaderboard: (n) => {
+                    localStorage.setItem(scoreKey, n);
+                    if (window.Leaderboard && Leaderboard.submitScore) Leaderboard.submitScore(n);
+                    if (window.showToast) showToast('Leaderboard = ' + n);
+                },
+
+                unlock: () => {
+                    const ud = JSON.parse(localStorage.getItem(storageKey) || '{}');
                     ud.ownedSkins = ['default', 'animals', 'space', 'food', 'sports', 'hearts', 'halloween', 'christmas'];
                     ud.ownedColors = ['default', 'gold', 'rainbow', 'pink', 'blue', 'green', 'purple', 'vvip_rainbow'];
                     ud.premiumSounds = true;
-                    localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(ud));
-                    showToast?.('All unlocked! 🎨');
+                    localStorage.setItem(storageKey, JSON.stringify(ud));
+                    if (window.showToast) showToast('All unlocked! 🎨');
                 },
-                setScore: (n) => { GameState && (GameState.score = n); gameScene?.updateUI(); showToast?.(`Score=${n}`); },
-                setHighScore: (n) => { localStorage.setItem(CONFIG.STORAGE_BEST_SCORE, n); Leaderboard?.submitScore(n); showToast?.(`Best=${n}`); },
-                godMode: () => { CHEAT.setStars(999999); CHEAT.addPowerups(999); CHEAT.unlockAll(); showToast?.('🔥 GOD MODE!'); },
-                help: () => console.log('CHEAT: addStars, setStars, addPowerups, unlockAll, setScore, setHighScore, godMode')
+
+                god: () => {
+                    CHEAT.stars(999999);
+                    CHEAT.powerups(999);
+                    CHEAT.unlock();
+                    if (window.showToast) showToast('🔥 GOD MODE!');
+                }
             };
-            console.log('%cType CHEAT.help()', 'color:#0f0');
+
+            console.log('%c🎮 Cheats ready!', 'color:#0f0;font-size:14px');
+            console.log('  CHEAT.stars(10000)  - Add stars');
+            console.log('  CHEAT.powerups(99)  - Add powerups');
+            console.log('  CHEAT.score(99999)  - Set game score');
+            console.log('  CHEAT.leaderboard(99999) - Set leaderboard');
+            console.log('  CHEAT.unlock()      - Unlock all');
+            console.log('  CHEAT.god()         - Everything!');
         },
 
         injectStyles() {
@@ -266,11 +230,24 @@
         }
     };
 
+    // ==========================================
+    // Expose & Initialize
+    // ==========================================
+
+    // 暴露 VVIP 对象（用于密码激活）
+    window.VVIP = {
+        activate: (pw) => VVIPSystem.activate(pw),
+        deactivate: () => VVIPSystem.deactivate(),
+        status: () => isOwner() ? 'VVIP Active 👑' : 'Normal User'
+    };
+
     window.VVIPSystem = VVIPSystem;
 
+    // 启动
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => VVIPSystem.init());
     } else {
         VVIPSystem.init();
     }
+
 })();

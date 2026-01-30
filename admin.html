@@ -277,7 +277,12 @@
     <!-- Dashboard -->
     <div id="dashboard">
         <div class="header">
-            <h1>🍉 Fruit Merge <span>Admin</span></h1>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                        <h1>🍉 Fruit Merge <span>Admin</span></h1>
+                        <button onclick="showAdminTools()" style="padding:10px 15px;border:none;border-radius:8px;background:#ff6b6b;color:#fff;cursor:pointer;">
+                            🛠️ Tools
+                        </button>
+                    </div>
             <div class="header-actions">
                 <span class="last-update" id="lastUpdate">--</span>
                 <label>
@@ -529,6 +534,109 @@
         }
         
         function esc(s) { return String(s || '').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+        
+        // ========== ADMIN TOOLS ==========
+        function showAdminTools() {
+            const modal = document.createElement('div');
+            modal.id = 'admin-tools-modal';
+            modal.innerHTML = `
+                <div style="position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:10000;display:flex;justify-content:center;align-items:center;padding:20px;">
+                    <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:20px;padding:25px;max-width:400px;width:100%;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                            <h2 style="margin:0;">🛠️ Admin Tools</h2>
+                            <button onclick="document.getElementById('admin-tools-modal').remove()" style="background:none;border:none;color:white;font-size:24px;cursor:pointer;">&times;</button>
+                        </div>
+                        
+                        <div style="display:flex;flex-direction:column;gap:10px;">
+                            <button onclick="checkDuplicates()" class="tool-btn">🔍 Check Duplicate Users</button>
+                            <button onclick="clearGuestUsers()" class="tool-btn warning">🗑️ Clear Guest Users</button>
+                            <button onclick="resetAllData()" class="tool-btn danger">⚠️ Reset ALL Data</button>
+                            <button onclick="forceSync()" class="tool-btn">💾 Force Save Data</button>
+                        </div>
+                        
+                        <div id="tool-result" style="margin-top:20px;padding:15px;background:rgba(255,255,255,0.05);border-radius:10px;display:none;"></div>
+                    </div>
+                </div>
+                <style>
+                    .tool-btn{padding:15px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;font-size:14px;cursor:pointer;text-align:left;}
+                    .tool-btn:hover{opacity:0.9;}
+                    .tool-btn.warning{background:linear-gradient(135deg,#f39c12,#e74c3c);}
+                    .tool-btn.danger{background:linear-gradient(135deg,#e74c3c,#c0392b);}
+                </style>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        async function checkDuplicates() {
+            const result = document.getElementById('tool-result');
+            result.style.display = 'block';
+            result.innerHTML = 'Checking...';
+            
+            try {
+                const res = await fetch(API + '/api/admin/clear-duplicates?password=' + pw, { method: 'POST' });
+                const data = await res.json();
+                result.innerHTML = `
+                    <p>✅ Check complete!</p>
+                    <p>👤 Real users (Telegram): <strong>${data.realUsers}</strong></p>
+                    <p>👻 Guest users: <strong>${data.guestUsers}</strong></p>
+                    <p>📊 Total: <strong>${data.before}</strong></p>
+                `;
+            } catch (e) {
+                result.innerHTML = '❌ Error: ' + e.message;
+            }
+        }
+        
+        async function clearGuestUsers() {
+            if (!confirm('Delete all guest users? This cannot be undone.')) return;
+            
+            const result = document.getElementById('tool-result');
+            result.style.display = 'block';
+            result.innerHTML = 'Clearing...';
+            
+            // Note: This would require a backend endpoint to actually delete guest users
+            result.innerHTML = '⚠️ To clear guest users, you need to manually delete them from data.json or add the delete endpoint.';
+        }
+        
+        async function resetAllData() {
+            if (!confirm('⚠️ WARNING: This will delete ALL data!\n\nType "RESET" to confirm.')) return;
+            
+            const confirmText = prompt('Type RESET_ALL_DATA to confirm:');
+            if (confirmText !== 'RESET_ALL_DATA') {
+                alert('Cancelled.');
+                return;
+            }
+            
+            const result = document.getElementById('tool-result');
+            result.style.display = 'block';
+            result.innerHTML = 'Resetting...';
+            
+            try {
+                const res = await fetch(API + '/api/admin/reset-all?password=' + pw, { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confirm: 'RESET_ALL_DATA' })
+                });
+                const data = await res.json();
+                result.innerHTML = data.success ? '✅ All data has been reset!' : '❌ ' + data.error;
+                if (data.success) fetchData();
+            } catch (e) {
+                result.innerHTML = '❌ Error: ' + e.message;
+            }
+        }
+        
+        async function forceSync() {
+            const result = document.getElementById('tool-result');
+            result.style.display = 'block';
+            result.innerHTML = 'Saving...';
+            
+            try {
+                const res = await fetch(API + '/api/admin/save?password=' + pw, { method: 'POST' });
+                const data = await res.json();
+                result.innerHTML = data.success ? '✅ Data saved!' : '❌ ' + data.error;
+            } catch (e) {
+                result.innerHTML = '❌ Error: ' + e.message;
+            }
+        }
         
         function time(ts) {
             if (!ts) return '--';

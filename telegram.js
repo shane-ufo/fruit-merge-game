@@ -7,15 +7,15 @@ const TelegramGame = {
     webapp: null,
     user: null,
     isTelegram: false,
-    
+
     init() {
         // Check if in Telegram
         if (window.Telegram?.WebApp) {
             this.webapp = window.Telegram.WebApp;
             this.isTelegram = true;
-            
+
             const tgUser = this.webapp.initDataUnsafe?.user;
-            
+
             if (tgUser) {
                 this.user = {
                     id: tgUser.id,
@@ -30,28 +30,28 @@ const TelegramGame = {
             } else {
                 this.loadUserFromStorage();
             }
-            
+
             this.webapp.ready();
             this.webapp.expand();
-            
+
             try {
                 this.webapp.setHeaderColor('#1a1a2e');
                 this.webapp.setBackgroundColor('#1a1a2e');
-            } catch (e) {}
-            
+            } catch (e) { }
+
         } else {
             console.log('[TG] Not in Telegram');
             this.loadUserFromStorage();
         }
-        
+
         if (!this.user) {
             this.createGuestUser();
         }
-        
+
         this.startHeartbeat();
         return this;
     },
-    
+
     // 保存用户到 localStorage（持久化）
     saveUserToStorage() {
         if (this.user) {
@@ -59,32 +59,32 @@ const TelegramGame = {
             localStorage.setItem('_permanent_user_data', JSON.stringify(this.user));
         }
     },
-    
+
     // 从 localStorage 读取用户
     loadUserFromStorage() {
         try {
             const savedData = localStorage.getItem('_permanent_user_data');
             const savedId = localStorage.getItem('_permanent_user_id');
-            
+
             if (savedData) {
                 this.user = JSON.parse(savedData);
                 console.log('[TG] Loaded user:', this.user.odairy);
             } else if (savedId) {
                 this.user = { id: savedId, odairy: savedId, first_name: 'Player' };
             }
-        } catch (e) {}
+        } catch (e) { }
     },
-    
+
     // 创建 Guest（只创建一次！）
     createGuestUser() {
         let odairy = localStorage.getItem('_permanent_user_id');
-        
+
         if (!odairy) {
             // 只在第一次生成，之后永远用同一个
             odairy = 'G' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
             localStorage.setItem('_permanent_user_id', odairy);
         }
-        
+
         this.user = {
             id: odairy,
             odairy: odairy,
@@ -92,17 +92,17 @@ const TelegramGame = {
             last_name: '',
             username: ''
         };
-        
+
         this.saveUserToStorage();
         console.log('[TG] Guest ID:', odairy);
     },
-    
+
     getUser() { return this.user; },
-    
-    getUserId() { 
-        return this.user?.odairy || localStorage.getItem('_permanent_user_id'); 
+
+    getUserId() {
+        return this.user?.odairy || localStorage.getItem('_permanent_user_id');
     },
-    
+
     getDisplayName() {
         const ud = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
         if (ud.displayName) return ud.displayName;
@@ -110,13 +110,13 @@ const TelegramGame = {
         if (this.user?.username) return this.user.username;
         return 'Player';
     },
-    
+
     // 心跳
     startHeartbeat() {
         const send = async () => {
             if (!this.user) return;
             const ud = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
-            
+
             try {
                 await fetch(CONFIG.BACKEND_URL + '/heartbeat', {
                     method: 'POST',
@@ -135,32 +135,32 @@ const TelegramGame = {
                         score: parseInt(localStorage.getItem(CONFIG.STORAGE_BEST_SCORE)) || 0
                     })
                 });
-            } catch (e) {}
+            } catch (e) { }
         };
-        
+
         send();
         setInterval(send, 30000);
     },
-    
+
     onGameStart() {
         const ud = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
         fetch(CONFIG.BACKEND_URL + '/game/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                userId: this.getUserId(),
+                userId: TelegramGame.getUserId(),
                 username: ud.displayName || this.getDisplayName()
             })
-        }).catch(() => {});
+        }).catch(() => { });
     },
-    
+
     onGameOver(score, isNewBest) {
         const ud = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
         fetch(CONFIG.BACKEND_URL + '/game/end', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                userId: this.getUserId(),
+                userId: TelegramGame.getUserId(),
                 username: ud.displayName || this.getDisplayName(),
                 displayName: ud.displayName || this.getDisplayName(),
                 score: score,
@@ -168,26 +168,26 @@ const TelegramGame = {
                 isVip: ud.isVip || false,
                 isVVIP: ud.isVVIP || false
             })
-        }).catch(() => {});
+        }).catch(() => { });
     },
-    
-    onScoreUpdate(score) {},
-    
+
+    onScoreUpdate(score) { },
+
     hapticFeedback(type = 'light') {
         if (!this.webapp?.HapticFeedback) return;
         try {
-            if (['light','medium','heavy'].includes(type)) {
+            if (['light', 'medium', 'heavy'].includes(type)) {
                 this.webapp.HapticFeedback.impactOccurred(type);
             } else {
                 this.webapp.HapticFeedback.notificationOccurred(type);
             }
-        } catch (e) {}
+        } catch (e) { }
     },
-    
+
     shareScore(score) {
         const text = '🍉 I scored ' + score + ' in Fruit Merge!';
         const url = 'https://t.me/' + CONFIG.BOT_USERNAME + '/' + CONFIG.APP_SHORT_NAME;
-        
+
         if (this.webapp?.switchInlineQuery) {
             this.webapp.switchInlineQuery(text, ['users', 'groups', 'channels']);
         } else {
@@ -195,10 +195,10 @@ const TelegramGame = {
             showToast?.('Copied!');
         }
     },
-    
+
     shareReferralLink() {
         const url = 'https://t.me/' + CONFIG.BOT_USERNAME + '/' + CONFIG.APP_SHORT_NAME + '?startapp=ref_' + this.getUserId();
-        
+
         if (this.webapp?.switchInlineQuery) {
             this.webapp.switchInlineQuery('🍉 Join Fruit Merge! ' + url, ['users', 'groups', 'channels']);
         } else {
@@ -206,7 +206,7 @@ const TelegramGame = {
             showToast?.('Link copied!');
         }
     },
-    
+
     close() { this.webapp?.close?.(); }
 };
 

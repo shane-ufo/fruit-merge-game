@@ -912,15 +912,20 @@ class GameScene extends Phaser.Scene {
 function initGame() {
     const config = {
         type: Phaser.AUTO,
+        width: CONFIG.GAME_WIDTH,
+        height: CONFIG.GAME_HEIGHT,
         parent: 'game-container',
-        scale: {
-            mode: Phaser.Scale.FIT, // 自动缩放以适应父容器
-            autoCenter: Phaser.Scale.CENTER_BOTH,
-            width: CONFIG.GAME_WIDTH,
-            height: CONFIG.GAME_HEIGHT
+        backgroundColor: '#fef9e7',
+        physics: {
+            default: 'matter',
+            matter: {
+                gravity: { y: CONFIG.GRAVITY },
+                debug: false
+            }
         },
-        // ... 其他配置 ...
+        scene: GameScene
     };
+
     game = new Phaser.Game(config);
 }
 

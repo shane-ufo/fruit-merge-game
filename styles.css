@@ -101,7 +101,6 @@ body {
     position: relative;
     overflow: hidden;
     min-height: 0;
-    border: 2px solid red;
 }
 
 #game-container {

@@ -226,17 +226,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', adjustGameSize);
 
     console.log('[App] Ready!');
-
-    if (window.GameAPI) {
-        // 给浏览器 100ms 渲染 100dvh 的时间
-        setTimeout(() => {
-            adjustGameSize(); // 初始化前先计算一次
-            GameAPI.init();   // 启动 Phaser
-
-            // 启动后再次强制同步一次画布大小
-            setTimeout(adjustGameSize, 200);
-        }, 100);
-    }
 });
 
 function initializeNewUser() {
@@ -264,29 +253,29 @@ function adjustGameSize() {
 
     if (!gameArea || !container) return;
 
-    // 关键：如果 gameArea 高度还没出来，强制等待或使用默认值
-    const availableHeight = gameArea.clientHeight || window.innerHeight * 0.7;
-    const availableWidth = gameArea.clientWidth || window.innerWidth;
+    const availableHeight = gameArea.clientHeight - 20;
+    const availableWidth = gameArea.clientWidth - 20;
 
+    // Game aspect ratio
     const gameRatio = CONFIG.GAME_WIDTH / CONFIG.GAME_HEIGHT;
 
     let newWidth, newHeight;
+
     if (availableWidth / availableHeight > gameRatio) {
+        // Height constrained
         newHeight = availableHeight;
         newWidth = newHeight * gameRatio;
     } else {
+        // Width constrained
         newWidth = availableWidth;
         newHeight = newWidth / gameRatio;
     }
 
-    // 强制设置 container 的宽高，而不仅仅是内部的 canvas
-    container.style.width = `${newWidth}px`;
-    container.style.height = `${newHeight}px`;
-
+    // Apply to canvas
     const canvas = container.querySelector('canvas');
     if (canvas) {
-        canvas.style.width = '100%';
-        canvas.style.height = '100%';
+        canvas.style.width = `${newWidth}px`;
+        canvas.style.height = `${newHeight}px`;
     }
 }
 

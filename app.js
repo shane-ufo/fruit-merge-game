@@ -179,6 +179,12 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('[App] Friends system initialized');
     }
     
+    if (window.VVIPSystem) {
+        VVIPSystem.injectStyles();
+        VVIPSystem.init();
+        console.log('[App] VVIP system initialized');
+    }
+    
     if (window.Shop) {
         Shop.init();
         console.log('[App] Shop initialized');

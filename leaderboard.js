@@ -108,17 +108,18 @@ const Leaderboard = {
             const rank = index + 1;
             const isCurrentUser = entry.odairy === currentUserId || entry.userId === currentUserId;
             const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+            const isVVIP = entry.isVVIP || entry.nameColor === 'vvip_rainbow';
             
             // Styled name with color
             const styledName = this.getStyledName(entry);
             
             return `
-                <div class="leaderboard-entry ${rank <= 3 ? 'top-3' : ''} ${isCurrentUser ? 'you' : ''}">
+                <div class="leaderboard-entry ${rank <= 3 ? 'top-3' : ''} ${isCurrentUser ? 'you' : ''} ${isVVIP ? 'vvip' : ''}">
                     <div class="rank ${rank <= 3 ? 'medal' : ''}">${medal}</div>
-                    <div class="player-avatar">${entry.avatar || '🎮'}</div>
+                    <div class="player-avatar">${isVVIP ? '👑' : (entry.avatar || '🎮')}</div>
                     <div class="player-info">
                         <div class="player-name">${styledName}</div>
-                        ${entry.isVip ? '<span class="vip-badge">VIP</span>' : ''}
+                        ${entry.isVip && !isVVIP ? '<span class="vip-badge">VIP</span>' : ''}
                     </div>
                     <div class="player-score">${entry.score?.toLocaleString() || 0}</div>
                 </div>
@@ -139,6 +140,14 @@ const Leaderboard = {
     getStyledName(entry) {
         const name = this.escapeHtml(entry.username || entry.displayName || 'Player');
         const colorId = entry.nameColor;
+        
+        // Check for VVIP
+        if (entry.isVVIP || colorId === 'vvip_rainbow') {
+            return `
+                <span class="vvip-text">${name}</span>
+                <span class="vvip-title">OWNER</span>
+            `;
+        }
         
         if (!colorId || colorId === 'default') {
             return name;

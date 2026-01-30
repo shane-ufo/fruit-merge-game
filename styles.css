@@ -561,7 +561,63 @@ body {
     cursor: pointer;
 }
 
-.btn-buy:disabled { opacity: 0.5; }
+.btn-buy:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ========== Star Packages ========== */
+.shop-section {
+    margin-bottom: 20px;
+}
+
+.section-header {
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 12px;
+    opacity: 0.8;
+}
+
+.star-packages {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.star-package {
+    background: linear-gradient(135deg, rgba(255,215,0,0.15) 0%, rgba(255,170,0,0.1) 100%);
+    border: 2px solid rgba(255,215,0,0.3);
+    border-radius: 12px;
+    padding: 15px 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.star-package:active {
+    transform: scale(0.98);
+    border-color: #ffd700;
+}
+
+.pkg-stars {
+    font-size: 18px;
+    font-weight: bold;
+    color: #ffd700;
+}
+
+.pkg-bonus {
+    font-size: 11px;
+    color: #38ef7d;
+    margin: 4px 0;
+}
+
+.pkg-price {
+    font-size: 12px;
+    opacity: 0.7;
+    margin-top: 5px;
+}
+
+.shop-item.owned {
+    opacity: 0.6;
+}
 
 /* ========== Skins ========== */
 .skins-list {

@@ -1,178 +1,253 @@
 // ==========================================
-// Shop System
+// Shop System v3.1
+// Added: Buy Stars with Telegram Stars
 // ==========================================
 
 const Shop = {
     userStars: 0,
     
-    // Initialize shop
+    // Star packages (buy with real Telegram Stars)
+    starPackages: [
+        { id: 'stars_100', stars: 100, price: 10, bonus: 0, label: '100 ⭐' },
+        { id: 'stars_500', stars: 500, price: 45, bonus: 50, label: '500 + 50 ⭐' },
+        { id: 'stars_1000', stars: 1000, price: 80, bonus: 200, label: '1000 + 200 ⭐' },
+        { id: 'stars_5000', stars: 5000, price: 350, bonus: 1500, label: '5000 + 1500 ⭐' }
+    ],
+    
     init() {
         this.loadUserStars();
-        this.renderShopItems();
-        this.setupEventListeners();
+        this.renderShop();
+        this.setupListeners();
     },
     
-    // Load user's star balance
     loadUserStars() {
         const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
-        this.userStars = userData.stars || 100;  // Start with 100 stars for testing
+        this.userStars = userData.stars || 0;
         this.updateStarsDisplay();
     },
     
-    // Save user's star balance
-    saveUserStars() {
-        const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
-        userData.stars = this.userStars;
-        localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(userData));
-        this.updateStarsDisplay();
-    },
-    
-    // Update stars display
     updateStarsDisplay() {
-        const display = document.getElementById('user-stars');
-        if (display) {
-            display.textContent = this.userStars;
-        }
-    },
-    
-    // Render shop items
-    renderShopItems() {
-        const container = document.getElementById('shop-items-container');
-        if (!container) return;
+        const displays = [
+            document.getElementById('user-stars'),
+            document.getElementById('header-stars')
+        ];
         
-        const powerups = JSON.parse(localStorage.getItem(CONFIG.STORAGE_POWERUPS) || '{}');
-        const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
-        
-        let html = '';
-        
-        // Consumables section
-        html += '<div class="shop-section"><h3 style="margin: 15px 0 10px; opacity: 0.7; font-size: 12px;">POWER-UPS</h3></div>';
-        
-        for (const [key, item] of Object.entries(SHOP_ITEMS)) {
-            if (item.type !== 'consumable') continue;
-            
-            const owned = powerups[item.id] || 0;
-            html += this.renderShopItem(item, owned);
-        }
-        
-        // Bundles section
-        html += '<div class="shop-section"><h3 style="margin: 20px 0 10px; opacity: 0.7; font-size: 12px;">BUNDLES</h3></div>';
-        
-        for (const [key, item] of Object.entries(SHOP_ITEMS)) {
-            if (item.type !== 'bundle') continue;
-            html += this.renderShopItem(item);
-        }
-        
-        // Permanent section
-        html += '<div class="shop-section"><h3 style="margin: 20px 0 10px; opacity: 0.7; font-size: 12px;">PERMANENT UPGRADES</h3></div>';
-        
-        for (const [key, item] of Object.entries(SHOP_ITEMS)) {
-            if (item.type !== 'permanent') continue;
-            
-            const isPurchased = (item.id === 'no_ads' && userData.noAds) ||
-                               (item.id === 'double_score' && userData.doubleScore);
-            
-            html += this.renderShopItem(item, null, isPurchased);
-        }
-        
-        container.innerHTML = html;
-        
-        // Add click listeners to buy buttons
-        container.querySelectorAll('.btn-buy').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const itemId = e.target.closest('.btn-buy').dataset.itemId;
-                this.purchaseItem(itemId);
-            });
+        displays.forEach(el => {
+            if (el) el.textContent = this.userStars;
         });
     },
     
-    // Render single shop item
-    renderShopItem(item, owned = null, isPurchased = false) {
-        const canAfford = this.userStars >= item.price;
+    renderShop() {
+        const container = document.getElementById('shop-items-container');
+        if (!container) return;
         
-        let buttonHtml = '';
-        if (isPurchased) {
-            buttonHtml = '<span style="color: #38ef7d; font-weight: bold;">✓ Owned</span>';
-        } else {
-            buttonHtml = `
-                <button class="btn btn-buy" data-item-id="${item.id}" ${!canAfford ? 'disabled style="opacity:0.5"' : ''}>
-                    ${item.price} ⭐
-                </button>
+        const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
+        const powerups = JSON.parse(localStorage.getItem(CONFIG.STORAGE_POWERUPS) || '{}');
+        
+        let html = '';
+        
+        // ========== Buy Stars Section ==========
+        html += `
+            <div class="shop-section">
+                <div class="section-header">💎 Buy Stars</div>
+                <div class="star-packages">
+                    ${this.starPackages.map(pkg => `
+                        <div class="star-package" onclick="Shop.buyStarPackage('${pkg.id}')">
+                            <div class="pkg-stars">${pkg.stars + pkg.bonus} ⭐</div>
+                            ${pkg.bonus > 0 ? `<div class="pkg-bonus">+${pkg.bonus} bonus!</div>` : ''}
+                            <div class="pkg-price">${pkg.price} Telegram ⭐</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        
+        // ========== Power-ups Section ==========
+        html += `<div class="shop-section"><div class="section-header">⚡ Power-ups</div>`;
+        
+        for (const [id, item] of Object.entries(SHOP_ITEMS)) {
+            if (item.type !== 'consumable') continue;
+            
+            const owned = powerups[id] || 0;
+            
+            html += `
+                <div class="shop-item" data-item="${id}">
+                    <div class="shop-item-icon">${item.emoji}</div>
+                    <div class="shop-item-info">
+                        <div class="shop-item-title">${item.title}</div>
+                        <div class="shop-item-desc">${item.description}</div>
+                        <div class="shop-item-owned">Owned: ${owned}</div>
+                    </div>
+                    <button class="btn-buy" onclick="Shop.buyItem('${id}')">
+                        ${item.price} ⭐
+                    </button>
+                </div>
             `;
         }
         
-        let ownedHtml = '';
-        if (owned !== null && owned > 0) {
-            ownedHtml = `<div class="shop-item-owned">You have: ${owned}</div>`;
+        html += `</div>`;
+        
+        // ========== Bundles Section ==========
+        html += `<div class="shop-section"><div class="section-header">📦 Bundles</div>`;
+        
+        for (const [id, item] of Object.entries(SHOP_ITEMS)) {
+            if (item.type !== 'bundle') continue;
+            
+            html += `
+                <div class="shop-item" data-item="${id}">
+                    <div class="shop-item-icon">${item.emoji}</div>
+                    <div class="shop-item-info">
+                        <div class="shop-item-title">${item.title}</div>
+                        <div class="shop-item-desc">${item.description}</div>
+                    </div>
+                    <button class="btn-buy" onclick="Shop.buyItem('${id}')">
+                        ${item.price} ⭐
+                    </button>
+                </div>
+            `;
         }
         
-        return `
-            <div class="shop-item" data-item="${item.id}">
-                <div class="shop-item-icon">${item.emoji}</div>
-                <div class="shop-item-info">
-                    <div class="shop-item-title">${item.title}</div>
-                    <div class="shop-item-desc">${item.description}</div>
-                    ${ownedHtml}
+        html += `</div>`;
+        
+        // ========== Permanent Section ==========
+        html += `<div class="shop-section"><div class="section-header">✨ Permanent Upgrades</div>`;
+        
+        for (const [id, item] of Object.entries(SHOP_ITEMS)) {
+            if (item.type !== 'permanent') continue;
+            
+            const owned = id === 'double_score' ? userData.doubleScore : 
+                         id === 'no_ads' ? userData.noAds : false;
+            
+            html += `
+                <div class="shop-item ${owned ? 'owned' : ''}" data-item="${id}">
+                    <div class="shop-item-icon">${item.emoji}</div>
+                    <div class="shop-item-info">
+                        <div class="shop-item-title">${item.title}</div>
+                        <div class="shop-item-desc">${item.description}</div>
+                        ${owned ? '<div class="shop-item-owned">✅ Owned</div>' : ''}
+                    </div>
+                    ${owned ? 
+                        '<button class="btn-buy" disabled>Owned</button>' : 
+                        `<button class="btn-buy" onclick="Shop.buyItem('${id}')">${item.price} ⭐</button>`
+                    }
                 </div>
-                ${buttonHtml}
-            </div>
-        `;
+            `;
+        }
+        
+        html += `</div>`;
+        
+        container.innerHTML = html;
     },
     
-    // Purchase item
-    async purchaseItem(itemId) {
+    setupListeners() {
+        // Close shop
+        document.getElementById('close-shop')?.addEventListener('click', () => {
+            closeModal('shop-modal');
+        });
+    },
+    
+    // ========== Buy Star Package (Real Money) ==========
+    async buyStarPackage(packageId) {
+        const pkg = this.starPackages.find(p => p.id === packageId);
+        if (!pkg) return;
+        
+        // Check if in Telegram
+        if (!window.TelegramGame?.isTelegram) {
+            showToast('Star purchase only works in Telegram');
+            return;
+        }
+        
+        try {
+            const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
+            const userId = window.TelegramGame?.getUser()?.id || userData.odairy || 'guest';
+            const username = window.TelegramGame?.getUser()?.first_name || 'Player';
+            
+            // Call backend to create invoice
+            const response = await fetch(`${CONFIG.BACKEND_URL}/buy-stars`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    packageId: pkg.id,
+                    userId: userId,
+                    username: username
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success && data.invoiceLink) {
+                // Open Telegram payment
+                window.Telegram?.WebApp?.openInvoice(data.invoiceLink, (status) => {
+                    if (status === 'paid') {
+                        // Grant stars locally
+                        const totalStars = pkg.stars + pkg.bonus;
+                        this.addStars(totalStars);
+                        showToast(`🎉 You got ${totalStars} Stars!`);
+                        
+                        if (window.TelegramGame) {
+                            window.TelegramGame.hapticFeedback('success');
+                        }
+                    } else if (status === 'cancelled') {
+                        showToast('Purchase cancelled');
+                    } else if (status === 'failed') {
+                        showToast('Purchase failed. Try again.');
+                    }
+                });
+            } else {
+                throw new Error(data.error || 'Failed to create invoice');
+            }
+        } catch (e) {
+            console.error('[Shop] Buy stars error:', e);
+            showToast('Error: ' + e.message);
+        }
+    },
+    
+    // ========== Buy Item (With In-Game Stars) ==========
+    buyItem(itemId) {
         const item = SHOP_ITEMS[itemId];
         if (!item) return;
         
-        // Check if can afford
         if (this.userStars < item.price) {
-            showToast('Not enough stars! ⭐');
+            showToast('Not enough Stars! 💫');
+            
             if (window.TelegramGame) {
-                window.TelegramGame.hapticFeedback('error');
+                window.TelegramGame.hapticFeedback('warning');
             }
             return;
         }
         
-        // Check if permanent item already owned
+        // Check if already owned (permanent items)
         const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
         if (item.type === 'permanent') {
-            if ((item.id === 'no_ads' && userData.noAds) ||
-                (item.id === 'double_score' && userData.doubleScore)) {
+            if (itemId === 'double_score' && userData.doubleScore) {
+                showToast('Already owned!');
+                return;
+            }
+            if (itemId === 'no_ads' && userData.noAds) {
                 showToast('Already owned!');
                 return;
             }
         }
         
-        // Confirm purchase
-        const confirmed = await (window.TelegramGame?.showConfirm || confirm)(
-            `Buy ${item.title} for ${item.price} ⭐?`
-        );
-        
-        if (!confirmed) return;
-        
         // Deduct stars
         this.userStars -= item.price;
-        this.saveUserStars();
+        userData.stars = this.userStars;
+        localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(userData));
         
         // Grant item
         this.grantItem(item);
         
-        // Refresh display
-        this.renderShopItems();
+        // Update UI
+        this.updateStarsDisplay();
+        this.renderShop();
         
-        // Update game UI
-        if (window.gameScene) {
-            window.gameScene.updateUI();
-        }
-        
-        // Feedback
         if (window.TelegramGame) {
             window.TelegramGame.hapticFeedback('success');
         }
+        
         showToast(`Purchased ${item.title}! ✅`);
     },
     
-    // Grant purchased item
     grantItem(item) {
         const powerups = JSON.parse(localStorage.getItem(CONFIG.STORAGE_POWERUPS) || '{}');
         const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
@@ -193,47 +268,24 @@ const Shop = {
         
         localStorage.setItem(CONFIG.STORAGE_POWERUPS, JSON.stringify(powerups));
         localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(userData));
+        
+        // Update game UI
+        if (window.updateAllUI) {
+            window.updateAllUI();
+        }
     },
     
-    // Add stars (from referrals, rewards, etc.)
     addStars(amount) {
-        this.userStars += amount;
-        this.saveUserStars();
-        showToast(`+${amount} ⭐`);
-    },
-    
-    // Setup event listeners
-    setupEventListeners() {
-        // Shop button
-        document.getElementById('shop-btn')?.addEventListener('click', () => {
-            this.openShop();
-        });
+        const userData = JSON.parse(localStorage.getItem(CONFIG.STORAGE_USER_DATA) || '{}');
+        userData.stars = (userData.stars || 0) + amount;
+        this.userStars = userData.stars;
+        localStorage.setItem(CONFIG.STORAGE_USER_DATA, JSON.stringify(userData));
+        this.updateStarsDisplay();
         
-        // Close shop button
-        document.getElementById('close-shop')?.addEventListener('click', () => {
-            this.closeShop();
-        });
-        
-        // Close on backdrop click
-        document.getElementById('shop-modal')?.addEventListener('click', (e) => {
-            if (e.target.id === 'shop-modal') {
-                this.closeShop();
-            }
-        });
-    },
-    
-    // Open shop modal
-    openShop() {
-        this.loadUserStars();
-        this.renderShopItems();
-        document.getElementById('shop-modal')?.classList.add('show');
-    },
-    
-    // Close shop modal
-    closeShop() {
-        document.getElementById('shop-modal')?.classList.remove('show');
+        if (window.updateAllUI) {
+            window.updateAllUI();
+        }
     }
 };
 
-// Export
 window.Shop = Shop;

@@ -140,6 +140,32 @@
         }
         .stat-card .label { font-size: 12px; opacity: 0.6; margin-top: 5px; text-transform: uppercase; }
         
+        /* Week Banner */
+        .week-banner {
+            background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,107,107,0.1));
+            border: 1px solid rgba(255,215,0,0.3);
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+        }
+        
+        .week-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .week-label { color: #ffd700; }
+        .week-countdown { 
+            background: rgba(255,107,107,0.3);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            color: #ff6b6b;
+        }
+        
         /* Panels */
         .panels {
             display: grid;
@@ -216,6 +242,19 @@
         
         .badge-green { background: rgba(0,255,136,0.2); color: #00ff88; }
         .badge-gold { background: rgba(255,215,0,0.2); color: #ffd700; }
+        .badge-purple { background: rgba(147,112,219,0.2); color: #9370db; }
+        
+        .name.vvip {
+            background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #00bfff, #8b00ff);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: rainbow 2s linear infinite;
+        }
+        
+        @keyframes rainbow {
+            to { background-position: 200% center; }
+        }
         .badge-blue { background: rgba(102,126,234,0.2); color: #667eea; }
         .badge-pink { background: rgba(240,147,251,0.2); color: #f093fb; }
         
@@ -293,6 +332,14 @@
             </div>
         </div>
         
+        <!-- Week Info Banner -->
+        <div class="week-banner" id="weekBanner">
+            <div class="week-info">
+                <span class="week-label">📅 Current Week: <strong id="currentWeek">--</strong></span>
+                <span class="week-countdown" id="weekCountdown">-- until reset</span>
+            </div>
+        </div>
+        
         <!-- Stats -->
         <div class="stats-row">
             <div class="stat-card">
@@ -350,15 +397,28 @@
                 </div>
             </div>
             
-            <!-- Top Players -->
+            <!-- Weekly Leaderboard -->
             <div class="panel">
                 <div class="panel-header">
-                    <span>🏆 Top Players</span>
+                    <span>🏆 Weekly Leaderboard</span>
+                    <button onclick="resetWeek()" style="padding:5px 10px;border:none;border-radius:5px;background:#ff6b6b;color:#fff;cursor:pointer;font-size:11px;">Reset</button>
                 </div>
                 <div class="panel-body">
-                    <table><thead><tr><th>#</th><th>Player</th><th>Best</th><th>Games</th></tr></thead>
-                    <tbody id="tblPlayers"></tbody></table>
-                    <div class="empty" id="noPlayers">No players yet</div>
+                    <table><thead><tr><th>#</th><th>Player</th><th>Score</th></tr></thead>
+                    <tbody id="tblWeekly"></tbody></table>
+                    <div class="empty" id="noWeekly">No scores this week</div>
+                </div>
+            </div>
+            
+            <!-- All-Time Leaderboard -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span>👑 All-Time Best</span>
+                </div>
+                <div class="panel-body">
+                    <table><thead><tr><th>#</th><th>Player</th><th>Score</th></tr></thead>
+                    <tbody id="tblAllTime"></tbody></table>
+                    <div class="empty" id="noAllTime">No scores yet</div>
                 </div>
             </div>
             
@@ -439,6 +499,24 @@
             document.getElementById('sRevenue').textContent = s.totalRevenue || 0;
             document.getElementById('sPayments').textContent = s.totalPayments || 0;
             
+            // Week info
+            document.getElementById('currentWeek').textContent = d.currentWeek || '--';
+            
+            // Countdown
+            const ms = d.timeUntilReset || 0;
+            if (ms > 0) {
+                const days = Math.floor(ms / 86400000);
+                const hours = Math.floor((ms % 86400000) / 3600000);
+                const mins = Math.floor((ms % 3600000) / 60000);
+                let countdownText = '';
+                if (days > 0) countdownText = `${days}d ${hours}h until reset`;
+                else if (hours > 0) countdownText = `${hours}h ${mins}m until reset`;
+                else countdownText = `${mins}m until reset`;
+                document.getElementById('weekCountdown').textContent = countdownText;
+            } else {
+                document.getElementById('weekCountdown').textContent = 'Resetting soon...';
+            }
+            
             // Online
             const online = d.onlineUsers || [];
             document.getElementById('onlineCount').textContent = online.length;
@@ -480,23 +558,39 @@
                 </tr>
             `).join('');
             
-            // Players
-            const players = d.topPlayers || [];
-            document.getElementById('noPlayers').style.display = players.length ? 'none' : 'block';
-            document.getElementById('tblPlayers').innerHTML = players.map((p, i) => `
+            // Weekly Leaderboard
+            const weekly = d.weeklyLeaderboard || [];
+            document.getElementById('noWeekly').style.display = weekly.length ? 'none' : 'block';
+            document.getElementById('tblWeekly').innerHTML = weekly.slice(0, 20).map((p, i) => `
                 <tr>
                     <td><span class="medal">${i < 3 ? ['🥇','🥈','🥉'][i] : i+1}</span></td>
                     <td>
                         <div class="user-info">
-                            <span class="avatar">${p.avatar || '🎮'}</span>
+                            <span class="avatar">${p.isVVIP ? '👑' : (p.avatar || '🎮')}</span>
                             <div>
-                                <div class="name">${esc(p.username || 'Unknown')}</div>
-                                <div class="id">ID: ${p.odairy || p.userId || '?'}</div>
+                                <div class="name ${p.isVVIP ? 'vvip' : ''}">${esc(p.username || 'Unknown')}</div>
                             </div>
                         </div>
                     </td>
-                    <td><span class="badge badge-gold">${p.highScore || 0}</span></td>
-                    <td>${p.gamesPlayed || 0}</td>
+                    <td><span class="badge badge-gold">${(p.score || 0).toLocaleString()}</span></td>
+                </tr>
+            `).join('');
+            
+            // All-Time Leaderboard
+            const allTime = d.allTimeLeaderboard || [];
+            document.getElementById('noAllTime').style.display = allTime.length ? 'none' : 'block';
+            document.getElementById('tblAllTime').innerHTML = allTime.slice(0, 20).map((p, i) => `
+                <tr>
+                    <td><span class="medal">${i < 3 ? ['🥇','🥈','🥉'][i] : i+1}</span></td>
+                    <td>
+                        <div class="user-info">
+                            <span class="avatar">${p.isVVIP ? '👑' : (p.avatar || '🎮')}</span>
+                            <div>
+                                <div class="name ${p.isVVIP ? 'vvip' : ''}">${esc(p.username || 'Unknown')}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td><span class="badge badge-purple">${(p.score || 0).toLocaleString()}</span></td>
                 </tr>
             `).join('');
             
@@ -531,6 +625,19 @@
             `).join('') : '<div class="empty">No activity</div>';
             
             document.getElementById('lastUpdate').textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+        }
+        
+        async function resetWeek() {
+            if (!confirm('Reset this week\'s leaderboard? This cannot be undone!')) return;
+            
+            try {
+                const res = await fetch(`${API}/api/admin/reset-week?password=${pw}`, { method: 'POST' });
+                const data = await res.json();
+                alert(data.message || 'Week reset!');
+                fetchData();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
         }
         
         function esc(s) { return String(s || '').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
